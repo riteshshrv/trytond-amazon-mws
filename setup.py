@@ -5,8 +5,6 @@
 
     Setup Module
 
-    :copyright: (c) 2013-2015 by Openlabs Technologies & Consulting (P) Limited
-    :license: BSD, see LICENSE for more details.
 """
 from setuptools import setup, Command
 import re
@@ -93,7 +91,7 @@ MODULE2PREFIX = {
     'product_variant': 'openlabs',
 }
 MODULE = "amazon_mws"
-PREFIX = "openlabs"
+PREFIX = "fio"
 for dep in info.get('depends', []):
     if not re.match(r'(ir|res|webdav)(\W|$)', dep):
         requires.append(
@@ -109,9 +107,9 @@ setup(
     version=info.get('version', '0.0.1'),
     description='Amazon MWS Integration',
     long_description=read('README.rst'),
-    author='Openlabs Technologies and Consulting P Ltd.',
-    url='http://openlabs.co.in/',
-    download_url="https://github.com/openlabs/trytond-amazon-mws",
+    author='Fulfil.IO Inc., Openlabs Technologies and Consulting P Ltd.',
+    url='http://www.fulfil.io/',
+    download_url="https://github.com/fulfilio/trytond-amazon-mws",
     package_dir={'trytond.modules.%s' % MODULE: '.'},
     packages=[
         'trytond.modules.%s' % MODULE,
@@ -137,7 +135,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Topic :: Office/Business',
     ],
-    license='GPL-3',
+    license='BSD',
     install_requires=requires,
     tests_require=[],
     zip_safe=False,
