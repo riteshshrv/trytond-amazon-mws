@@ -133,6 +133,16 @@ class SaleChannel:
             account_id=self.amazon_merchant_id,
         )
 
+    def get_last_order_import_time_required(self, name):
+        """
+        Returns True if source is amazon
+        """
+        if self.source == 'amazon_mws':
+            return True
+        return super(SaleChannel, self).get_last_order_import_time_required(
+            name
+        )
+
     @classmethod
     @ModelView.button_action('amazon_mws.check_amazon_service_status')
     def check_amazon_service_status(cls, channels):
