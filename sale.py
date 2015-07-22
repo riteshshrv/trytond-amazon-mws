@@ -128,19 +128,9 @@ class Sale:
         # TODO: Handle Discounts
         # TODO: Handle Taxes
 
-        # Assert that the order totals are same
-        # Cases handled according to OrderStatus
-        # XXX: Handle case of PartiallyShipped
-        if order_data['OrderStatus']['value'] == 'Unshipped':
-            assert sale.total_amount == Decimal(
-                order_data['OrderTotal']['Amount']['value']) * Decimal(
-                order_data['NumberOfItemsUnshipped']['value']
-            )
-        elif order_data['OrderStatus']['value'] == 'Shipped':
-            assert sale.total_amount == Decimal(
-                order_data['OrderTotal']['Amount']['value']) * Decimal(
-                order_data['NumberOfItemsShipped']['value']
-            )
+        assert sale.total_amount == Decimal(
+            order_data['OrderTotal']['Amount']['value']
+        )
 
         # We import only completed orders, so we can confirm them all
         cls.quote([sale])
