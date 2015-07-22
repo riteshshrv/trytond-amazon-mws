@@ -217,7 +217,8 @@ class Sale:
                 )
             )
 
-            if order_item['ShippingPrice']['Amount']['value']:
+            if order_item.get('ShippingPrice') and \
+               order_item['ShippingPrice']['Amount']['value']:
                 sale_lines.append(
                     cls.get_shipping_line_data_using_amazon_data(order_item)
                 )
