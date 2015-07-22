@@ -231,12 +231,16 @@ class Sale:
         Uom = Pool().get('product.uom')
 
         unit, = Uom.search([('name', '=', 'Unit')])
+        shipping_price = Decimal(
+            order_item['ShippingPrice']['Amount']['value']
+        )
+        shipping_discount = Decimal(
+            order_item['ShippingDiscount']['Amount']['value']
+        )
 
         return SaleLine(
             description='Amazon Shipping and Handling',
-            unit_price=Decimal(
-                order_item['ShippingPrice']['Amount']['value']
-            ),
+            unit_price=(shipping_price - shipping_discount),
             unit=unit.id,
             quantity=Decimal(
                 order_item['QuantityOrdered']['value']
