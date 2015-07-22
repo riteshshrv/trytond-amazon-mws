@@ -193,12 +193,17 @@ class Sale:
         )
         amazon_channel.validate_amazon_channel()
         for order_item in order_items:
+            promotion_discount = Decimal(
+                order_item['PromotionDiscount']['Amount']['value']
+                if 'PromotionDiscount' in order_item else 0
+            )
+            # TODO: Show promotion discount in sale order
+            unit_price = Decimal(order_item['ItemPrice']['Amount']['value']) - \
+                promotion_discount
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
-                    unit_price=Decimal(
-                        order_item['ItemPrice']['Amount']['value']
-                    ),
+                    unit_price=unit_price,
                     unit=unit.id,
                     quantity=Decimal(order_item['QuantityOrdered']['value']),
                     product=amazon_channel.import_product(
