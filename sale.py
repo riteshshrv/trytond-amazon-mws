@@ -109,9 +109,10 @@ class Sale:
         }
         party = Party.find_or_create_using_amazon_data(party_values)
 
-        party.add_phone_using_amazon_data(
-            order_data['ShippingAddress']['Phone']['value']
-        )
+        if 'Phone' in order_data['ShippingAddress']:
+            party.add_phone_using_amazon_data(
+                order_data['ShippingAddress']['Phone']['value']
+            )
         party_invoice_address = party_shipping_address = \
             Address.find_or_create_for_party_using_amazon_data(
                 party, order_data['ShippingAddress']
