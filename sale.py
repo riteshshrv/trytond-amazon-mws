@@ -104,14 +104,15 @@ class Sale:
         assert amazon_channel.source == 'amazon_mws'
 
         party_values = {
-            'name': order_data['BuyerEmail']['value'],
-            'email': order_data['BuyerName']['value'],
+            'name': order_data['BuyerName']['value'],
+            'email': order_data['BuyerEmail']['value'],
         }
         party = Party.find_or_create_using_amazon_data(party_values)
 
-        party.add_phone_using_amazon_data(
-            order_data['ShippingAddress']['Phone']['value']
-        )
+        if 'Phone' in order_data['ShippingAddress']:
+            party.add_phone_using_amazon_data(
+                order_data['ShippingAddress']['Phone']['value']
+            )
         party_invoice_address = party_shipping_address = \
             Address.find_or_create_for_party_using_amazon_data(
                 party, order_data['ShippingAddress']
@@ -198,14 +199,18 @@ class Sale:
                 if 'PromotionDiscount' in order_item else 0
             )
             # TODO: Show promotion discount in sale order
-            unit_price = Decimal(order_item['ItemPrice']['Amount']['value']) - \
+            amount = Decimal(order_item['ItemPrice']['Amount']['value']) - \
                 promotion_discount
+            quantity = Decimal(order_item['QuantityOrdered']['value'])
+            # TODO: Amazon doesn't send unit_price. This is the only way to
+            # calculate unit_price. Fix this if you have better.
+            unit_price = amount / quantity
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
                     unit_price=unit_price,
                     unit=unit.id,
-                    quantity=Decimal(order_item['QuantityOrdered']['value']),
+                    quantity=quantity,
                     product=amazon_channel.import_product(
                         order_item['SellerSKU']['value'],
                     ).id
