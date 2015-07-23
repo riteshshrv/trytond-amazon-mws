@@ -37,7 +37,7 @@ class Subdivision:
         """
         subdivisions = cls.search([
             ('country', '=', country.id),
-            ('code', '=', country.code + '-' + value)
+            ('code', '=', country.code + '-' + value.upper())
         ])
 
         if not subdivisions:

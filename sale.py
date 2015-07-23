@@ -104,14 +104,15 @@ class Sale:
         assert amazon_channel.source == 'amazon_mws'
 
         party_values = {
-            'name': order_data['BuyerEmail']['value'],
-            'email': order_data['BuyerName']['value'],
+            'name': order_data['BuyerName']['value'],
+            'email': order_data['BuyerEmail']['value'],
         }
         party = Party.find_or_create_using_amazon_data(party_values)
 
-        party.add_phone_using_amazon_data(
-            order_data['ShippingAddress']['Phone']['value']
-        )
+        if 'Phone' in order_data['ShippingAddress']:
+            party.add_phone_using_amazon_data(
+                order_data['ShippingAddress']['Phone']['value']
+            )
         party_invoice_address = party_shipping_address = \
             Address.find_or_create_for_party_using_amazon_data(
                 party, order_data['ShippingAddress']
@@ -128,19 +129,9 @@ class Sale:
         # TODO: Handle Discounts
         # TODO: Handle Taxes
 
-        # Assert that the order totals are same
-        # Cases handled according to OrderStatus
-        # XXX: Handle case of PartiallyShipped
-        if order_data['OrderStatus']['value'] == 'Unshipped':
-            assert sale.total_amount == Decimal(
-                order_data['OrderTotal']['Amount']['value']) * Decimal(
-                order_data['NumberOfItemsUnshipped']['value']
-            )
-        elif order_data['OrderStatus']['value'] == 'Shipped':
-            assert sale.total_amount == Decimal(
-                order_data['OrderTotal']['Amount']['value']) * Decimal(
-                order_data['NumberOfItemsShipped']['value']
-            )
+        assert sale.total_amount == Decimal(
+            order_data['OrderTotal']['Amount']['value']
+        )
 
         # We import only completed orders, so we can confirm them all
         cls.quote([sale])
@@ -203,14 +194,23 @@ class Sale:
         )
         amazon_channel.validate_amazon_channel()
         for order_item in order_items:
+            promotion_discount = Decimal(
+                order_item['PromotionDiscount']['Amount']['value']
+                if 'PromotionDiscount' in order_item else 0
+            )
+            # TODO: Show promotion discount in sale order
+            amount = Decimal(order_item['ItemPrice']['Amount']['value']) - \
+                promotion_discount
+            quantity = Decimal(order_item['QuantityOrdered']['value'])
+            # TODO: Amazon doesn't send unit_price. This is the only way to
+            # calculate unit_price. Fix this if you have better.
+            unit_price = amount / quantity
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
-                    unit_price=Decimal(
-                        order_item['ItemPrice']['Amount']['value']
-                    ),
+                    unit_price=unit_price,
                     unit=unit.id,
-                    quantity=Decimal(order_item['QuantityOrdered']['value']),
+                    quantity=quantity,
                     product=amazon_channel.import_product(
                         order_item['SellerSKU']['value'],
                     ).id
@@ -236,12 +236,16 @@ class Sale:
         Uom = Pool().get('product.uom')
 
         unit, = Uom.search([('name', '=', 'Unit')])
+        shipping_price = Decimal(
+            order_item['ShippingPrice']['Amount']['value']
+        )
+        shipping_discount = Decimal(
+            order_item['ShippingDiscount']['Amount']['value']
+        )
 
         return SaleLine(
             description='Amazon Shipping and Handling',
-            unit_price=Decimal(
-                order_item['ShippingPrice']['Amount']['value']
-            ),
+            unit_price=(shipping_price - shipping_discount),
             unit=unit.id,
             quantity=Decimal(
                 order_item['QuantityOrdered']['value']
