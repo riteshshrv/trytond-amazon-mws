@@ -72,7 +72,8 @@ class Party:
             'amazon_user_email': amazon_data['email'],
             'contact_mechanisms': [
                 ('create', [{
-                    'email': amazon_data['email']
+                    'type': 'email',
+                    'value': amazon_data['email']
                 }])
             ]
         }])[0]

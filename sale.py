@@ -104,8 +104,8 @@ class Sale:
         assert amazon_channel.source == 'amazon_mws'
 
         party_values = {
-            'name': order_data['BuyerEmail']['value'],
-            'email': order_data['BuyerName']['value'],
+            'name': order_data['BuyerName']['value'],
+            'email': order_data['BuyerEmail']['value'],
         }
         party = Party.find_or_create_using_amazon_data(party_values)
 
