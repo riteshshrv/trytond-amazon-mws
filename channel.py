@@ -3,6 +3,7 @@
     channle.py
 
 """
+import time
 from datetime import datetime
 from mws import mws
 from lxml import etree
@@ -220,7 +221,25 @@ class SaleChannel:
 
         order_api = self.get_amazon_order_api()
 
-        order_data = order_api.get_order([order_id]).parsed
+        for i in range(0, 10):
+            # Amazon API returns 503 sometime, Retry after exponential delay
+            try:
+                time.sleep(2 ** i)
+                order_data = order_api.get_order([order_id]).parsed
+            except mws.MWSError, e:
+                # Exception may occure due to 'RequestThrottled'
+                if e.response.status_code != 503 or \
+                        'RequestThrottled' not in e.response.content:
+                    raise
+                print "Failed get_order(%s): %s\nRetrying in %s sec..." % (
+                    order_id, e.message, 2 ** i
+                )
+                if i < 9:
+                    continue
+                else:
+                    raise
+            else:
+                break
 
         order_line_data = order_api.list_order_items(
             order_data['Orders']['Order']['AmazonOrderId']['value']
