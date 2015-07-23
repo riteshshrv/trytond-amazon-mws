@@ -198,14 +198,18 @@ class Sale:
                 if 'PromotionDiscount' in order_item else 0
             )
             # TODO: Show promotion discount in sale order
-            unit_price = Decimal(order_item['ItemPrice']['Amount']['value']) - \
+            amount = Decimal(order_item['ItemPrice']['Amount']['value']) - \
                 promotion_discount
+            quantity = Decimal(order_item['QuantityOrdered']['value'])
+            # TODO: Amazon doesn't send unit_price. This is the only way to
+            # calculate unit_price. Fix this if you have better.
+            unit_price = amount / quantity
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
                     unit_price=unit_price,
                     unit=unit.id,
-                    quantity=Decimal(order_item['QuantityOrdered']['value']),
+                    quantity=quantity,
                     product=amazon_channel.import_product(
                         order_item['SellerSKU']['value'],
                     ).id
