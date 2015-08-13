@@ -247,6 +247,7 @@ class TestBase(unittest.TestCase):
             'invoice_method': 'manual',
             'shipment_method': 'manual',
             'payment_term': self.payment_term,
+            'last_order_import_time': datetime.utcnow(),
         }])
 
         model_field, = self.ModelField.search([
