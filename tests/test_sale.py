@@ -16,6 +16,7 @@ DIR = os.path.abspath(os.path.normpath(
 ))
 if os.path.isdir(DIR):
     sys.path.insert(0, os.path.dirname(DIR))
+from decimal import Decimal
 
 import trytond.tests.test_tryton
 from trytond.tests.test_tryton import POOL, USER, DB_NAME, CONTEXT
@@ -28,7 +29,7 @@ class TestSale(TestBase):
     Tests import of sale order
     """
 
-    def test_0010_create_sale_using_amazon_data(self):
+    def test_0010_create_sale_using_amazon_data_with_exception(self):
         """
         Tests creation of sale order using amazon data
         """
@@ -36,6 +37,7 @@ class TestSale(TestBase):
         Product = POOL.get('product.product')
         Party = POOL.get('party.party')
         ContactMechanism = POOL.get('party.contact_mechanism')
+        ChannelException = POOL.get('channel.exception')
 
         with Transaction().start(DB_NAME, USER, CONTEXT):
             self.setup_defaults()
@@ -77,21 +79,88 @@ class TestSale(TestBase):
                 })
                 Product.create_using_amazon_data(product_data)
 
+                self.assertFalse(ChannelException.search([]))
+
                 with Transaction().set_context(company=self.company.id):
                     order = Sale.create_using_amazon_data(order_data, line_data)
 
-                self.assertEqual(order.state, 'confirmed')
+                # Since order total does not match
+                self.assertTrue(ChannelException.search([]))
+
+                self.assertEqual(order.state, 'draft')
+
+    def test_0015_create_sale_using_amazon_data_without_exception(self):
+        """
+        Tests creation of sale order using amazon data with equal sale total
+        """
+        Sale = POOL.get('sale.sale')
+        Product = POOL.get('product.product')
+        Party = POOL.get('party.party')
+        ContactMechanism = POOL.get('party.contact_mechanism')
+        ChannelException = POOL.get('channel.exception')
+
+        with Transaction().start(DB_NAME, USER, CONTEXT):
+            self.setup_defaults()
+
+            with Transaction().set_context({
+                'current_channel': self.sale_channel.id,
+            }):
 
                 orders = Sale.search([])
-                self.assertEqual(len(orders), 1)
-                self.assertTrue(
+                self.assertEqual(len(orders), 0)
+
+                order_data = load_json(
+                    'orders', 'order_list'
+                )['Orders']['Order']
+                line_data = load_json(
+                    'orders', 'order_items'
+                )['OrderItems']['OrderItem']
+                self.assertFalse(
                     Party.search([
                         ('name', '=', order_data['BuyerEmail']['value'])
                     ])
                 )
 
+                self.assertFalse(
+                    ContactMechanism.search([
+                        ('party.name', '=', order_data['BuyerEmail']['value']),
+                        ('type', 'in', ['phone', 'mobile']),
+                        ('value', '=',
+                            order_data['ShippingAddress']['Phone']['value']),
+                    ])
+                )
+
+                # Create product using sku
+                product_data = load_json('products', 'product-1')
+                product_data.update({
+                    'Id': {
+                        'value': line_data['SellerSKU']['value']
+                    }
+                })
+                Product.create_using_amazon_data(product_data)
+
+                self.assertFalse(ChannelException.search([]))
+
+                # Equalize sale amount
+                order_data['OrderTotal']['Amount']['value'] = Decimal('0.04')
+
+                with Transaction().set_context(company=self.company.id):
+                    order = Sale.create_using_amazon_data(order_data, line_data)
+
+                self.assertFalse(ChannelException.search([]))
+
+                self.assertEqual(order.state, 'confirmed')
+
+                orders = Sale.search([('state', 'not in', 'draft')])
+                self.assertEqual(len(orders), 1)
+                self.assertTrue(
+                    Party.search([
+                        ('name', '=', order_data['BuyerName']['value'])
+                    ])
+                )
+
                 party, = Party.search([
-                    ('name', '=', order_data['BuyerEmail']['value'])
+                    ('name', '=', order_data['BuyerName']['value'])
                 ])
 
                 # Address is created for party
