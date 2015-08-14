@@ -97,6 +97,7 @@ class Sale:
         Party = Pool().get('party.party')
         Address = Pool().get('party.address')
         SaleChannel = Pool().get('sale.channel')
+        ChannelException = Pool().get('channel.exception')
 
         amazon_channel = SaleChannel(
             Transaction().context['current_channel']
@@ -108,7 +109,6 @@ class Sale:
             'email': order_data['BuyerEmail']['value'],
         }
         party = Party.find_or_create_using_amazon_data(party_values)
-
         if 'Phone' in order_data['ShippingAddress']:
             party.add_phone_using_amazon_data(
                 order_data['ShippingAddress']['Phone']['value']
@@ -129,9 +129,16 @@ class Sale:
         # TODO: Handle Discounts
         # TODO: Handle Taxes
 
-        assert sale.total_amount == Decimal(
+        if sale.total_amount != Decimal(
             order_data['OrderTotal']['Amount']['value']
-        )
+        ):
+            ChannelException.create([{
+                'origin': '%s,%s' % (sale.__name__, sale.id),
+                'log': 'Order total does not match.',
+                'channel': sale.channel.id,
+            }])
+
+            return sale
 
         # We import only completed orders, so we can confirm them all
         cls.quote([sale])

@@ -190,7 +190,9 @@ class ExportAmazonCatalog(Wizard):
 
         amazon_channel = SaleChannel(Transaction().context.get('active_id'))
 
-        response = amazon_channel.export_catalog_to_amazon()
+        # TODO: Move this wizard to sale channel module
+
+        response = amazon_channel.export_product_catalog()
 
         Transaction().set_context({'response': response})
 
