@@ -71,7 +71,6 @@ class SaleChannel:
         })
 
         cls._error_messages.update({
-            'orders_not_found': 'No orders seems to be placed after %s',
             "missing_product_codes": (
                 'Product "%(product)s" misses Amazon Product Identifiers'
             ),
@@ -184,7 +183,7 @@ class SaleChannel:
         ).parsed
 
         if not response.get('Orders'):
-            self.raise_user_error('orders_not_found', last_import_time)
+            return []
 
         # Orders are returned as dictionary for single order and as
         # list for multiple orders.
@@ -272,16 +271,6 @@ class SaleChannel:
         return envelope_xml
 
     @classmethod
-    def export_to_amazon_using_cron(cls):
-        """
-        Cron method to export product catalog to amazon
-        """
-        channels = cls.search([('source', '=', 'amazon_mws')])
-
-        for channel in channels:
-            channel.export_catalog_to_amazon(silent=True)
-
-    @classmethod
     def export_inventory_to_amazon_using_cron(cls):
         """
         Cron method to export product inventory to amazon
@@ -291,10 +280,13 @@ class SaleChannel:
         for channel in channels:
             channel.export_inventory_to_amazon(silent=True)
 
-    def export_catalog_to_amazon(self, silent=False):
+    def export_product_catalog(self):
         """
         Export the products to the Amazon account in context
         """
+        if self.source != 'amazon_mws':
+            return super(SaleChannel, self).export_product_catalog()
+
         Product = Pool().get('product.product')
 
         self.validate_amazon_channel()
@@ -315,16 +307,12 @@ class SaleChannel:
         products_xml = []
         for product in products:
             if not product.code:
-                if silent:
-                    return
                 self.raise_user_error(
                     'missing_product_code', {
                         'product': product.template.name
                     }
                 )
             if not product.codes:
-                if silent:
-                    return
                 self.raise_user_error(
                     'missing_product_codes', {
                         'product': product.template.name
