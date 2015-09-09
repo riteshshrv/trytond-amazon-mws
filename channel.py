@@ -71,7 +71,6 @@ class SaleChannel:
         })
 
         cls._error_messages.update({
-            'orders_not_found': 'No orders seems to be placed after %s',
             "missing_product_codes": (
                 'Product "%(product)s" misses Amazon Product Identifiers'
             ),
@@ -184,7 +183,7 @@ class SaleChannel:
         ).parsed
 
         if not response.get('Orders'):
-            self.raise_user_error('orders_not_found', last_import_time)
+            return []
 
         # Orders are returned as dictionary for single order and as
         # list for multiple orders.
