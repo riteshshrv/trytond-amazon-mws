@@ -218,7 +218,7 @@ class Sale:
                     unit_price=unit_price,
                     unit=unit.id,
                     quantity=quantity,
-                    product=amazon_channel.import_product(
+                    product=amazon_channel.get_product(
                         order_item['SellerSKU']['value'],
                     ).id
                 )
