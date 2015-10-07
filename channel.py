@@ -213,7 +213,7 @@ class SaleChannel:
         Sale = Pool().get('sale.sale')
 
         sales = Sale.search([
-            ('amazon_order_id', '=', order_id),
+            ('channel_identifier', '=', order_id),
         ])
         if sales:
             return sales[0]
