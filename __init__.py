@@ -12,8 +12,8 @@ from channel import (
 )
 from product import (
     Product, ExportAmazonCatalogStart, ExportAmazonCatalog,
-    ExportAmazonCatalogDone, ExportAmazonInventoryStart,
-    ExportAmazonInventory, ExportAmazonInventoryDone, ProductCode, Template
+    ExportAmazonCatalogDone, ProductCode, Template,
+    ProductSaleChannelListing
 )
 from sale import Sale
 from party import Party, Address
@@ -31,20 +31,18 @@ def register():
         Template,
         ExportAmazonCatalogStart,
         ExportAmazonCatalogDone,
-        ExportAmazonInventoryStart,
-        ExportAmazonInventoryDone,
         CheckAmazonServiceStatusView,
         CheckAmazonSettingsView,
         Sale,
         Party,
         Address,
         Subdivision,
+        ProductSaleChannelListing,
         module='amazon_mws', type_='model'
     )
     Pool.register(
         CheckAmazonServiceStatus,
         CheckAmazonSettings,
         ExportAmazonCatalog,
-        ExportAmazonInventory,
         module='amazon_mws', type_='wizard'
     )

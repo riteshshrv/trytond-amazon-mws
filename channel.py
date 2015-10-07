@@ -270,16 +270,6 @@ class SaleChannel:
 
         return envelope_xml
 
-    @classmethod
-    def export_inventory_to_amazon_using_cron(cls):
-        """
-        Cron method to export product inventory to amazon
-        """
-        channels = cls.search([('source', '=', 'amazon_mws')])
-
-        for channel in channels:
-            channel.export_inventory_to_amazon(silent=True)
-
     def export_product_catalog(self):
         """
         Export the products to the Amazon account in context
@@ -447,56 +437,6 @@ class SaleChannel:
         ).parsed
 
         return Product.create_using_amazon_data(product_data)
-
-    def export_inventory_to_amazon(self, silent=False):
-        """Export inventory of the products to the Amazon account in context
-
-        :param products: List of active records of products
-        """
-        Product = Pool().get('product.product')
-
-        self.validate_amazon_channel()
-
-        products = Product.search([
-            ('code', '!=', None),
-            ('codes', 'not in', []),
-            ('channel_listings.channel', '=', self.id),
-        ])
-
-        inventory_xml = []
-        for product in products:
-            with Transaction().set_context({'locations': [self.warehouse.id]}):
-                quantity = product.quantity
-
-            if not quantity:
-                continue
-
-            if self in [
-                ch.channel for ch in product.channel_listings
-            ]:
-                inventory_xml.append(E.Message(
-                    E.MessageID(str(product.id)),
-                    E.OperationType('Update'),
-                    E.Inventory(
-                        E.SKU(product.code),
-                        E.Quantity(str(round(quantity))),
-                        E.FulfillmentLatency(
-                            str(product.template.delivery_time)
-                        ),
-                    )
-                ))
-
-        envelope_xml = self._get_amazon_envelop('Inventory', inventory_xml)
-
-        feeds_api = self.get_amazon_feed_api()
-
-        response = feeds_api.submit_feed(
-            etree.tostring(envelope_xml),
-            feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
-            marketplaceids=[self.amazon_marketplace_id]
-        )
-
-        return response.parsed
 
 
 class CheckAmazonServiceStatusView(ModelView):
