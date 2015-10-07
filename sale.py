@@ -254,8 +254,5 @@ class Sale:
             description='Amazon Shipping and Handling',
             unit_price=(shipping_price - shipping_discount),
             unit=unit.id,
-            quantity=Decimal(
-                order_item['QuantityOrdered']['value']
-            ),  # XXX: Not sure about this if shipping charges must
-                # be applied to each quantity ordered
+            quantity=1
         )
