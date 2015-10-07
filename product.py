@@ -4,6 +4,8 @@
 
 '''
 from decimal import Decimal
+from lxml import etree
+from lxml.builder import E
 
 from trytond.model import ModelView, fields
 from trytond.transaction import Transaction
@@ -13,10 +15,8 @@ from trytond.pool import PoolMeta, Pool
 
 __all__ = [
     'Product', 'ExportAmazonCatalogStart', 'ExportAmazonCatalog',
-    'ExportAmazonCatalogDone',
-    'ExportAmazonInventoryStart', 'ExportAmazonInventory',
-    'ExportAmazonInventoryDone', 'ProductCode',
-    'Template',
+    'ExportAmazonCatalogDone', 'ProductCode',
+    'Template', 'ProductSaleChannelListing',
 ]
 __metaclass__ = PoolMeta
 
@@ -211,63 +211,78 @@ class ExportAmazonCatalog(Wizard):
         }
 
 
-class ExportAmazonInventoryStart(ModelView):
-    'Export Catalog Inventory to Amazon View'
-    __name__ = 'amazon.export_catalog_inventory.start'
+class ProductSaleChannelListing:
+    "Product Sale Channel"
+    __name__ = 'product.product.channel_listing'
 
-
-class ExportAmazonInventoryDone(ModelView):
-    'Export Catalog Inventory to Amazon Done View'
-    __name__ = 'amazon.export_catalog_inventory.done'
-
-    status = fields.Char('Status', readonly=True)
-    submission_id = fields.Char('Submission ID', readonly=True)
-
-
-class ExportAmazonInventory(Wizard):
-    '''Export catalog inventory to Amazon
-
-    Export the prices products selected to this amazon account
-    '''
-    __name__ = 'amazon.export_catalog_inventory'
-
-    start = StateView(
-        'amazon.export_catalog_inventory.start',
-        'amazon_mws.export_catalog_inventory_start', [
-            Button('Cancel', 'end', 'tryton-cancel'),
-            Button('Continue', 'export_', 'tryton-ok', default=True),
-        ]
-    )
-    export_ = StateTransition()
-    done = StateView(
-        'amazon.export_catalog_inventory.done',
-        'amazon_mws.export_catalog_inventory_done', [
-            Button('OK', 'end', 'tryton-cancel'),
-        ]
-    )
-
-    def transition_export_(self):
+    def export_inventory(self):
         """
-        Export the prices for products selected to this amazon account
+        Export inventory of this listing to external channel
         """
-        SaleChannel = Pool().get('sale.channel')
+        if self.channel.source != 'amazon_mws':
+            return super(ProductSaleChannelListing, self).export_inventory()
 
-        amazon_channel = SaleChannel(Transaction().context.get('active_id'))
+        channel, product = self.channel, self.product
 
-        response = amazon_channel.export_inventory_to_amazon()
+        inventory_xml = []
+        with Transaction().set_context(locations=[channel.warehouse.id]):
+            inventory_xml.append(E.Message(
+                E.MessageID(str(product.id)),
+                E.OperationType('Update'),
+                E.Inventory(
+                    E.SKU(product.code),
+                    E.Quantity(str(round(product.quantity))),
+                    E.FulfillmentLatency(
+                        str(product.template.delivery_time)
+                    ),
+                )
+            ))
 
-        Transaction().set_context({'response': response})
+        envelope_xml = channel._get_amazon_envelop('Inventory', inventory_xml)
 
-        return 'done'
+        feeds_api = channel.get_amazon_feed_api()
 
-    def default_done(self, fields):
-        "Display response"
-        response = Transaction().context['response']
-        return {
-            'status': response['FeedSubmissionInfo'][
-                'FeedProcessingStatus'
-            ]['value'],
-            'submission_id': response['FeedSubmissionInfo'][
-                'FeedSubmissionId'
-            ]['value']
-        }
+        feeds_api.submit_feed(
+            etree.tostring(envelope_xml),
+            feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
+            marketplaceids=[channel.amazon_marketplace_id]
+        )
+
+    @classmethod
+    def export_bulk_inventory(cls, listings):
+        """
+        bulk export inventory to amazon
+        """
+        channel = (listings and listings[0].channel) or None
+
+        if channel and channel.source != 'amazon_mws':
+            return super(ProductSaleChannelListing, cls).export_bulk_inventory(
+                listings
+            )
+
+        inventory_xml = []
+        for listing in listings:
+            product = listing.product
+
+            with Transaction().set_context(locations=[channel.warehouse.id]):
+                inventory_xml.append(E.Message(
+                    E.MessageID(str(product.id)),
+                    E.OperationType('Update'),
+                    E.Inventory(
+                        E.SKU(product.code),
+                        E.Quantity(str(round(product.quantity))),
+                        E.FulfillmentLatency(
+                            str(product.template.delivery_time)
+                        ),
+                    )
+                ))
+
+        envelope_xml = channel._get_amazon_envelop('Inventory', inventory_xml)
+
+        feeds_api = channel.get_amazon_feed_api()
+
+        feeds_api.submit_feed(
+            etree.tostring(envelope_xml),
+            feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
+            marketplaceids=[channel.amazon_marketplace_id]
+        )
