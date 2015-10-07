@@ -22,32 +22,6 @@ class Sale:
     "Sale"
     __name__ = 'sale.sale'
 
-    amazon_order_id = fields.Char(
-        'Amazon Order ID', readonly=True, select=True,
-        help="This is global and unique ID given to an order across whole"
-        "amazon"
-        "Warning: Editing this might result in duplicate orders on next"
-        " import",
-        states={
-            'invisible': ~(Eval('channel_type') == 'amazon_mws')
-        }, depends=['channel_type']
-    )
-
-    @classmethod
-    def __setup__(cls):
-        """
-        Setup the class before adding to pool
-        """
-        super(Sale, cls).__setup__()
-
-        cls._sql_constraints += [
-            (
-                'amazon_id_unique',
-                'UNIQUE(amazon_order_id)',
-                'Sale with this amazon Order ID already exists'
-            )
-        ]
-
     @classmethod
     def find_or_create_using_amazon_id(cls, order_id):
         """
@@ -63,7 +37,7 @@ class Sale:
         SaleChannel = Pool().get('sale.channel')
 
         sales = cls.search([
-            ('amazon_order_id', '=', order_id),
+            ('channel_identifier', '=', order_id),
         ])
         if sales:
             return sales[0]
@@ -165,8 +139,8 @@ class Sale:
                 order_data['PurchaseDate']['value']
             ).date(),
             currency=currency.id,
-            amazon_order_id=order_data['AmazonOrderId']['value'],
-            lines=cls.get_item_line_data_using_amazon_data(line_data)
+            lines=cls.get_item_line_data_using_amazon_data(line_data),
+            channel_identifier=order_data['AmazonOrderId']['value'],
         )
 
     @classmethod
@@ -220,7 +194,8 @@ class Sale:
                     quantity=quantity,
                     product=amazon_channel.get_product(
                         order_item['SellerSKU']['value'],
-                    ).id
+                    ).id,
+                    channel_identifier=order_item['OrderItemId']['value'],
                 )
             )
 
