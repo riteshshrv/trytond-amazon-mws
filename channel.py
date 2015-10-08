@@ -418,25 +418,40 @@ class SaleChannel:
         :returns: Active record of Product Created
         """
         Product = Pool().get('product.product')
+        Listing = Pool().get('product.product.channel_listing')
 
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).import_product(sku)
 
         products = Product.search([('code', '=', sku)])
+        listings = Listing.search([
+            ('product.code', '=', sku),
+            ('channel', '=', self)
+        ])
 
-        if products:
-            return products[0]
+        if not products or not listings:
+            # If product is not found get the info from amazon and
+            # delegate to create_using_amazon_data
 
-        # If product is not found get the info from amazon and
-        # delegate to create_using_amazon_data
+            product_api = self.get_amazon_product_api()
 
-        product_api = self.get_amazon_product_api()
+            product_data = product_api.get_matching_product_for_id(
+                self.amazon_marketplace_id, 'SellerSKU', [sku]
+            ).parsed
 
-        product_data = product_api.get_matching_product_for_id(
-            self.amazon_marketplace_id, 'SellerSKU', [sku]
-        ).parsed
+            # Create a product since there is no match for an existing
+            # product with the SKU.
+            if not products:
+                product = Product.create_from(self, product_data)
+            else:
+                product, = products
 
-        return Product.create_using_amazon_data(product_data)
+            if not listings:
+                Listing.create_from(self, product_data)
+        else:
+            product = products[0]
+
+        return product
 
 
 class CheckAmazonServiceStatusView(ModelView):
