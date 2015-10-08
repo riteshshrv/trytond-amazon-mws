@@ -89,6 +89,15 @@ class Product:
         }
 
     @classmethod
+    def create_from(cls, channel, product_data):
+        """
+        Create the product for the channel
+        """
+        if channel.source != 'amazon_mws':
+            return super(Product, cls).create_from(channel, product_data)
+        return cls.create_using_amazon_data(product_data)
+
+    @classmethod
     def create_using_amazon_data(cls, product_data):
         """
         Create a new product with the `product_data` from amazon.
@@ -286,3 +295,31 @@ class ProductSaleChannelListing:
             feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
             marketplaceids=[channel.amazon_marketplace_id]
         )
+
+    @classmethod
+    def create_from(cls, channel, product_data):
+        """
+        Create a listing for the product from channel and data
+        """
+        Product = Pool().get('product.product')
+
+        if channel.source != 'amazon_mws':
+            return super(ProductSaleChannelListing, cls).create_from(
+                channel, product_data
+            )
+
+        sku = product_data['Id']['value']
+        try:
+            product, = Product.search([
+                ('code', '=', sku),
+            ])
+        except ValueError:
+            cls.raise_user_error("No product found for mapping")
+
+        listing = cls(
+            channel=channel,
+            product=product,
+            product_identifier=sku,
+        )
+        listing.save()
+        return listing

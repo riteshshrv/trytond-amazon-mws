@@ -81,8 +81,15 @@ class TestSale(TestBase):
 
                 self.assertFalse(ChannelException.search([]))
 
+                order_data['OrderTotal']['Amount']['value'] = Decimal('0.04')
+
                 with Transaction().set_context(company=self.company.id):
                     order = Sale.create_using_amazon_data(order_data, line_data)
+
+                self.assertNotEqual(
+                    order.total_amount,
+                    order_data['OrderTotal']['Amount']['value']
+                )
 
                 # Since order total does not match
                 self.assertTrue(ChannelException.search([]))
@@ -140,9 +147,6 @@ class TestSale(TestBase):
                 Product.create_using_amazon_data(product_data)
 
                 self.assertFalse(ChannelException.search([]))
-
-                # Equalize sale amount
-                order_data['OrderTotal']['Amount']['value'] = Decimal('0.04')
 
                 with Transaction().set_context(company=self.company.id):
                     order = Sale.create_using_amazon_data(order_data, line_data)
