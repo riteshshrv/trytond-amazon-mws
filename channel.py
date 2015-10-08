@@ -489,41 +489,53 @@ class SaleChannel:
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).import_order_states()
 
-        order_states_data = {
-            'pending': 'Pending',
-            'unshipped': 'Unshipped',
-            'partially_shipped': 'PartiallyShipped',
-            'shipped': 'Shipped',
-            'invoice_unconfirmed': 'InvoiceUnconfirmed',
-            'canceled': 'Canceled',
-            'unfulfillable': 'Unfulfillable',
-        }
+        order_states_data = [
+            'Pending',
+            'Unshipped',
+            'PartiallyShipped',
+            'Shipped',
+            'InvoiceUnconfirmed',
+            'Canceled',
+            'Unfulfillable',
+        ]
 
         with Transaction().set_context({'current_channel': self.id}):
-            for code, name in order_states_data.iteritems():
-                self.create_order_state(code, name)
+            for name in order_states_data:
+                self.create_order_state(name, name)
 
     def get_default_tryton_action(self, name):
         """
         Returns tryton order state for amazon order status
         """
         if self.source != 'amazon_mws':
-            return super(SaleChannel, self).get_tryton_action(name)
+            return super(SaleChannel, self).get_default_tryton_action(name)
 
-        if name in ('unshipped', 'partially_shipped'):
+        if name == 'PartiallyShipped':
+            return {
+                'action': 'process_manually',
+                'invoice_method': 'shipment',
+                'shipment_method': 'order'
+            }
+        elif name == 'Unshipped':
             return {
                 'action': 'process_automatically',
-                'invoice_method': 'order',
+                'invoice_method': 'shipment',
                 'shipment_method': 'order'
             }
         elif name in (
-            'pending', 'canceled', 'invoice_unconfirmed', 'shipped',
-            'unfulfillable',
+            'Pending', 'Canceled', 'InvoiceUnconfirmed',
+            'Unfulfillable',
         ):
             return {
                 'action': 'do_not_import',
                 'invoice_method': 'manual',
                 'shipment_method': 'manual'
+            }
+        elif name == 'Shipped':
+            return {
+                'action': 'import_as_past',
+                'invoice_method': 'order',
+                'shipment_method': 'order'
             }
 
 
