@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from trytond.transaction import Transaction
 from trytond.pool import PoolMeta, Pool
+from trytond.exceptions import UserError
 
 
 __all__ = ['Sale']
@@ -112,11 +113,23 @@ class Sale:
 
             return sale
 
-        # We import only completed orders, so we can confirm them all
-        cls.quote([sale])
-        cls.confirm([sale])
-
-        # TODO: Process the order for invoice as the payment info is received
+        # Process sale now
+        tryton_action = amazon_channel.get_tryton_action(
+            order_data['OrderStatus']['value']
+        )
+        try:
+            sale.process_to_channel_state(order_data['OrderStatus']['value'])
+        except UserError, e:
+            # Expecting UserError will only come when sale order has
+            # channel exception.
+            # Just ignore the error and leave this order in draft state
+            # and let the user fix this manually.
+            ChannelException.create([{
+                'origin': '%s,%s' % (sale.__name__, sale.id),
+                'log': "Error occurred on transitioning to state %s.\nError "
+                "Message: %s" % (tryton_action['action'], e.message),
+                'channel': sale.channel.id,
+            }])
 
         return sale
 
