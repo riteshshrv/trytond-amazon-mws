@@ -8,10 +8,8 @@
 import dateutil.parser
 from decimal import Decimal
 
-from trytond.model import fields
 from trytond.transaction import Transaction
 from trytond.pool import PoolMeta, Pool
-from trytond.pyson import Eval
 
 
 __all__ = ['Sale']
