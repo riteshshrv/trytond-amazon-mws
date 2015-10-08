@@ -453,6 +453,79 @@ class SaleChannel:
 
         return product
 
+    def import_order_states(self):
+        """
+        Import order states for amazon channel
+
+        =================================================================
+        |    OrderStatus   |                  Description               |
+        =================================================================
+        | Pending          |     Order has been placed but payment has  |
+        |                  | not been authorized. Not ready for shipment|
+        -----------------------------------------------------------------
+        | Unshipped        |    Payment has been authorized and order is|
+        |                  | ready for shipment, but no items in the    |
+        |                  | order have been shipped                    |
+        |----------------------------------------------------------------
+        | PartiallyShipped |    One or more (but not all) items in the  |
+        |                  | order have been shipped                    |
+        |----------------------------------------------------------------
+        | Shipped          |    All items in the order have been shipped|
+        |----------------------------------------------------------------
+        |InvoiceUnconfirmed|    All items in the order have been shipped|
+        |                  | The seller has not yet given confirmation  |
+        |                  | to Amazon that the invoice has been shipped|
+        |                  | to the buyer. Note: This value is available|
+        |                  | only in China                              |
+        |----------------------------------------------------------------
+        | Canceled         |    The order was canceled.                 |
+        |----------------------------------------------------------------
+        | Unfulfillable    |    The order cannot be fulfiled. This state|
+        |                  | applies to only amazon-fulfiled orders that|
+        |                  | were not placed on amazon's retail web site|
+        |----------------------------------------------------------------
+
+        """
+        if self.source != 'amazon_mws':
+            return super(SaleChannel, self).import_order_states()
+
+        order_states_data = {
+            'pending': 'Pending',
+            'unshipped': 'Unshipped',
+            'partially_shipped': 'PartiallyShipped',
+            'shipped': 'Shipped',
+            'invoice_unconfirmed': 'InvoiceUnconfirmed',
+            'canceled': 'Canceled',
+            'unfulfillable': 'Unfulfillable',
+        }
+
+        with Transaction().set_context({'current_channel': self.id}):
+            for code, name in order_states_data.iteritems():
+                self.create_order_state(code, name)
+
+    def get_default_tryton_action(self, name):
+        """
+        Returns tryton order state for amazon order status
+        """
+        if self.source != 'amazon_mws':
+            return super(SaleChannel, self).get_tryton_action(name)
+
+        if name in ('unshipped', 'partially_shipped'):
+            return {
+                'action': 'process_automatically',
+                'invoice_method': 'order',
+                'shipment_method': 'order'
+            }
+        elif name in (
+            'pending', 'canceled', 'invoice_unconfirmed', 'shipped',
+            'unfulfillable',
+        ):
+            return {
+                'action': 'do_not_import',
+                'invoice_method': 'manual',
+                'shipment_method': 'manual'
+            }
+
 
 class CheckAmazonServiceStatusView(ModelView):
     "Check Service Status View"
