@@ -39,7 +39,7 @@ class ShipmentOut:
                 continue
             if not isinstance(move.origin, SaleLine):
                 continue
-            if move.origin.channel.source != 'amazon_mws':
+            if move.origin.sale.channel.source != 'amazon_mws':
                 continue
             items_by_sale[move.origin.sale].append(
                 E.Item(
