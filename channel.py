@@ -568,7 +568,7 @@ class SaleChannel:
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).update_order_status()
 
-        sales, = Sale.search([
+        sales = Sale.search([
             ('channel', '=', self.id),
             ('state', 'in', ('confirmed', 'processing')),
         ])
