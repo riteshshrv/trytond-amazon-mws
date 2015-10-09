@@ -437,6 +437,16 @@ class SaleChannel:
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).import_product(sku)
 
+        # Check if there is a poduct with the seller SKU
+        # The SKU on the product could be different from that of the
+        # listing. Say older SKUs or Amazon assigned SKUs.
+        exisiting_listings = Listing.search([
+            ('product_identifier', '=', sku),
+            ('channel', '=', self),
+        ])
+        if exisiting_listings:
+            return exisiting_listings[0].product
+
         products = Product.search([('code', '=', sku)])
         listings = Listing.search([
             ('product.code', '=', sku),
