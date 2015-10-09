@@ -224,7 +224,7 @@ class ProductSaleChannelListing:
 
     asin = fields.Char('ASIN', states={
         'required': Eval('channel_source') == 'amazon_mws',
-        'invisible': ~Eval('channel_source') == 'amazon_mws',
+        'invisible': Eval('channel_source') != 'amazon_mws',
     }, depends=['channel_source'])
 
     def export_inventory(self):
