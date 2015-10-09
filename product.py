@@ -12,6 +12,7 @@ from trytond.model import ModelView, fields
 from trytond.transaction import Transaction
 from trytond.wizard import Wizard, StateView, StateTransition, Button
 from trytond.pool import PoolMeta, Pool
+from trytond.pysn import Eval
 
 
 __all__ = [
@@ -127,10 +128,6 @@ class Product:
                 'list_price': Decimal('0.01'),
                 'cost_price': Decimal('0.01'),
                 'description': product_attributes['Title']['value'],
-                'channel_listings': [('create', [{
-                    # TODO: Set product identifier
-                    'channel': Transaction().context['current_channel']
-                }])]
             }])],
         })
 
@@ -225,6 +222,11 @@ class ProductSaleChannelListing:
     "Product Sale Channel"
     __name__ = 'product.product.channel_listing'
 
+    asin = fields.Char('ASIN', states={
+        'required': Eval('channel_source') == 'amazon_mws',
+        'invisible': ~Eval('channel_source') == 'amazon_mws',
+    }, depends=['channel_source'])
+
     def export_inventory(self):
         """
         Export inventory of this listing to external channel
@@ -240,7 +242,7 @@ class ProductSaleChannelListing:
                 E.MessageID(str(product.id)),
                 E.OperationType('Update'),
                 E.Inventory(
-                    E.SKU(product.code),
+                    E.SKU(self.product_identifier),
                     E.Quantity(str(round(product.quantity))),
                     E.FulfillmentLatency(
                         str(product.template.delivery_time)
@@ -290,7 +292,7 @@ class ProductSaleChannelListing:
                     E.MessageID(str(product.id)),
                     E.OperationType('Update'),
                     E.Inventory(
-                        E.SKU(product.code),
+                        E.SKU(listing.product_identifier),
                         E.Quantity(str(round(product.quantity))),
                         E.FulfillmentLatency(
                             str(product.template.delivery_time)
@@ -308,31 +310,3 @@ class ProductSaleChannelListing:
                 feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
                 marketplaceids=[channel.amazon_marketplace_id]
             )
-
-    @classmethod
-    def create_from(cls, channel, product_data):
-        """
-        Create a listing for the product from channel and data
-        """
-        Product = Pool().get('product.product')
-
-        if channel.source != 'amazon_mws':
-            return super(ProductSaleChannelListing, cls).create_from(
-                channel, product_data
-            )
-
-        sku = product_data['Id']['value']
-        try:
-            product, = Product.search([
-                ('code', '=', sku),
-            ])
-        except ValueError:
-            cls.raise_user_error("No product found for mapping")
-
-        listing = cls(
-            channel=channel,
-            product=product,
-            product_identifier=sku,
-        )
-        listing.save()
-        return listing
