@@ -6,11 +6,13 @@
 from decimal import Decimal
 from lxml import etree
 from lxml.builder import E
+from collections import defaultdict
 
 from trytond.model import ModelView, fields
 from trytond.transaction import Transaction
 from trytond.wizard import Wizard, StateView, StateTransition, Button
 from trytond.pool import PoolMeta, Pool
+from trytond.pysn import Eval
 
 
 __all__ = [
@@ -126,10 +128,6 @@ class Product:
                 'list_price': Decimal('0.01'),
                 'cost_price': Decimal('0.01'),
                 'description': product_attributes['Title']['value'],
-                'channel_listings': [('create', [{
-                    # TODO: Set product identifier
-                    'channel': Transaction().context['current_channel']
-                }])]
             }])],
         })
 
@@ -224,6 +222,11 @@ class ProductSaleChannelListing:
     "Product Sale Channel"
     __name__ = 'product.product.channel_listing'
 
+    asin = fields.Char('ASIN', states={
+        'required': Eval('channel_source') == 'amazon_mws',
+        'invisible': ~Eval('channel_source') == 'amazon_mws',
+    }, depends=['channel_source'])
+
     def export_inventory(self):
         """
         Export inventory of this listing to external channel
@@ -239,7 +242,7 @@ class ProductSaleChannelListing:
                 E.MessageID(str(product.id)),
                 E.OperationType('Update'),
                 E.Inventory(
-                    E.SKU(product.code),
+                    E.SKU(self.product_identifier),
                     E.Quantity(str(round(product.quantity))),
                     E.FulfillmentLatency(
                         str(product.template.delivery_time)
@@ -262,23 +265,34 @@ class ProductSaleChannelListing:
         """
         bulk export inventory to amazon
         """
-        channel = (listings and listings[0].channel) or None
+        if not listings:
+            # Nothing to update
+            return
 
-        if channel and channel.source != 'amazon_mws':
+        non_amazon_listings = cls.search([
+            ('id', 'in', map(int, listings)),
+            ('channel.source', '!=', 'amazon_mws'),
+        ])
+        if non_amazon_listings:
             return super(ProductSaleChannelListing, cls).export_bulk_inventory(
-                listings
+                non_amazon_listings
             )
+        amazon_listings = filter(
+            lambda l: l not in non_amazon_listings, listings
+        )
 
-        inventory_xml = []
-        for listing in listings:
+        inventory_channel_map = defaultdict(list)
+        for listing in amazon_listings:
             product = listing.product
+            channel = listing.channel
 
+            # group inventory xml by channel
             with Transaction().set_context(locations=[channel.warehouse.id]):
-                inventory_xml.append(E.Message(
+                inventory_channel_map[channel].append(E.Message(
                     E.MessageID(str(product.id)),
                     E.OperationType('Update'),
                     E.Inventory(
-                        E.SKU(product.code),
+                        E.SKU(listing.product_identifier),
                         E.Quantity(str(round(product.quantity))),
                         E.FulfillmentLatency(
                             str(product.template.delivery_time)
@@ -286,40 +300,13 @@ class ProductSaleChannelListing:
                     )
                 ))
 
-        envelope_xml = channel._get_amazon_envelop('Inventory', inventory_xml)
+        for channel, elements in inventory_channel_map.iteritems():
+            envelope_xml = channel._get_amazon_envelop('Inventory', elements)
 
-        feeds_api = channel.get_amazon_feed_api()
+            feeds_api = channel.get_amazon_feed_api()
 
-        feeds_api.submit_feed(
-            etree.tostring(envelope_xml),
-            feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
-            marketplaceids=[channel.amazon_marketplace_id]
-        )
-
-    @classmethod
-    def create_from(cls, channel, product_data):
-        """
-        Create a listing for the product from channel and data
-        """
-        Product = Pool().get('product.product')
-
-        if channel.source != 'amazon_mws':
-            return super(ProductSaleChannelListing, cls).create_from(
-                channel, product_data
+            feeds_api.submit_feed(
+                etree.tostring(envelope_xml),
+                feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
+                marketplaceids=[channel.amazon_marketplace_id]
             )
-
-        sku = product_data['Id']['value']
-        try:
-            product, = Product.search([
-                ('code', '=', sku),
-            ])
-        except ValueError:
-            cls.raise_user_error("No product found for mapping")
-
-        listing = cls(
-            channel=channel,
-            product=product,
-            product_identifier=sku,
-        )
-        listing.save()
-        return listing

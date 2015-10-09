@@ -242,3 +242,32 @@ class Sale:
             unit=unit.id,
             quantity=1
         )
+
+    def update_order_status_from_amazon_mws(self, order_data=None):
+        """Update order status from amazon mws
+
+        :TODO: this only handles shipped orders of amazon mws. Should handle
+        other states too?
+        """
+        Shipment = Pool().get('stock.shipment.out')
+
+        if order_data is None:
+            order_api = self.channel.get_amazon_order_api()
+            order_data = order_api.get_order(
+                [self.channel_identifier]
+            ).parsed['Orders']['Order']
+
+        if order_data['OrderStatus']['value'] == "Shipped":
+            # Order is completed on amazon, process shipments and
+            # invoices.
+            for shipment in self.shipments:
+                if shipment.state == 'draft':
+                    Shipment.wait([shipment])
+                if shipment.state == 'waiting':
+                    Shipment.assign([shipment])
+                if shipment.state == 'assigned':
+                    Shipment.pack([shipment])
+                if shipment.state == 'packed':
+                    Shipment.done([shipment])
+
+            # TODO: handle invoices?
