@@ -234,10 +234,14 @@ class ProductSaleChannelListing:
         if self.channel.source != 'amazon_mws':
             return super(ProductSaleChannelListing, self).export_inventory()
 
+        Date = Pool().get('ir.date')
         channel, product = self.channel, self.product
 
         inventory_xml = []
-        with Transaction().set_context(locations=[channel.warehouse.id]):
+        with Transaction().set_context(
+                locations=[channel.warehouse.id],
+                stock_date_end=Date.today(),
+                stock_assign=True):
             inventory_xml.append(E.Message(
                 E.MessageID(str(product.id)),
                 E.OperationType('Update'),
