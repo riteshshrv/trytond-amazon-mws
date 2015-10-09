@@ -257,7 +257,7 @@ class Sale:
                 [self.channel_identifier]
             ).parsed['Orders']['Order']
 
-        if order_data['OrderStatus']['Value'] == "Shipped":
+        if order_data['OrderStatus']['value'] == "Shipped":
             # Order is completed on amazon, process shipments and
             # invoices.
             for shipment in self.shipments:
