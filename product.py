@@ -12,7 +12,7 @@ from trytond.model import ModelView, fields
 from trytond.transaction import Transaction
 from trytond.wizard import Wizard, StateView, StateTransition, Button
 from trytond.pool import PoolMeta, Pool
-from trytond.pysn import Eval
+from trytond.pyson import Eval
 
 
 __all__ = [
