@@ -568,12 +568,29 @@ class SaleChannel:
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).update_order_status()
 
-        sales, = Sale.search([
+        order_api = self.get_amazon_order_api()
+
+        sales = Sale.search([
             ('channel', '=', self.id),
             ('state', 'in', ('confirmed', 'processing')),
         ])
-        for sale in sales:
-            sale.update_order_status_from_amazon_mws()
+        order_ids = [sale.channel_identifier for sale in sales]
+
+        for order_ids_batch in batch(order_ids, 50):
+            # The order fetch API limits getting orders to a maximum
+            # of 50 at a time
+            response = order_api.get_order(order_ids[:50]).parsed
+
+            if not isinstance(response['Orders']['Order'], list):
+                orders = [response['Orders']['Order']]
+            else:
+                orders = response['Orders']['Order']
+
+            for order in orders:
+                sale, = Sale.search([
+                    ('channel_identifier', '=', order['AmazonOrderId']['value'])
+                ])
+                sale.update_order_status_from_amazon_mws(order)
 
 
 class CheckAmazonServiceStatusView(ModelView):

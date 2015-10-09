@@ -257,6 +257,13 @@ class Sale:
                 [self.channel_identifier]
             ).parsed['Orders']['Order']
 
+        if order_data['OrderStatus']['value'] == "Canceled":
+            # TODO
+            # If not done
+            # - cancel shipment
+            # - cancel invoice or credit invoice
+            pass
+
         if order_data['OrderStatus']['value'] == "Shipped":
             # Order is completed on amazon, process shipments and
             # invoices.
