@@ -8,6 +8,7 @@ from datetime import datetime
 from mws import mws
 from lxml import etree
 from lxml.builder import E
+from dateutil.relativedelta import relativedelta
 
 from trytond.model import ModelView, fields
 from trytond.wizard import Wizard, StateView, Button, StateAction
@@ -27,6 +28,12 @@ AMAZON_MWS_STATES = {
     'required': Eval('source') == 'amazon_mws',
     'invisible': ~(Eval('source') == 'amazon_mws')
 }
+
+
+def batch(iterable, n=1):
+    l = len(iterable)
+    for ndx in range(0, l, n):
+        yield iterable[ndx:min(ndx + n, l)]
 
 
 class SaleChannel:
@@ -133,16 +140,6 @@ class SaleChannel:
             account_id=self.amazon_merchant_id,
         )
 
-    def get_last_order_import_time_required(self, name):
-        """
-        Returns True if source is amazon
-        """
-        if self.source == 'amazon_mws':
-            return True
-        return super(SaleChannel, self).get_last_order_import_time_required(
-            name
-        )
-
     @classmethod
     @ModelView.button_action('amazon_mws.check_amazon_service_status')
     def check_amazon_service_status(cls, channels):
@@ -171,15 +168,20 @@ class SaleChannel:
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).import_orders()
 
+        Date = Pool().get('ir.date')
+
         order_api = self.get_amazon_order_api()
 
-        sales = []
-        last_import_time = self.last_order_import_time.isoformat()
-
+        created_after = (
+            Date.today() - relativedelta(months=1)
+        ).strftime('%Y-%m-%dT00:00:01Z')
         response = order_api.list_orders(
             marketplaceids=[self.amazon_marketplace_id],
-            created_after=last_import_time,
-            orderstatus=('Unshipped', 'PartiallyShipped', 'Shipped')
+            created_after=created_after,
+            # Unshipped and PartiallyShipped must be used together in
+            # this version of the Orders API section. Using one and not
+            # the other returns an error.
+            orderstatus=('Unshipped', 'PartiallyShipped')
         ).parsed
 
         if not response.get('Orders'):
@@ -188,67 +190,79 @@ class SaleChannel:
         # Orders are returned as dictionary for single order and as
         # list for multiple orders.
         # Convert to list if dictionary is returned
-        if isinstance(response['Orders']['Order'], dict):
+        if not isinstance(response['Orders']['Order'], list):
             orders = [response['Orders']['Order']]
         else:
             orders = response['Orders']['Order']
 
-        for order_data in orders:
-            sales.append(
-                self.import_order(
-                    order_data['AmazonOrderId']['value']
-                )
-            )
-
         # Update last order import time for channel
         self.write([self], {'last_order_import_time': datetime.utcnow()})
 
+        return self.import_order_bulk(
+            [o['AmazonOrderId']['value'] for o in orders]
+        )
+
+    def import_order_bulk(self, amazon_order_ids):
+        """
+        It is expensive to get orders one by one and in addition, it will
+        throttle the API requests.
+        """
+        Sale = Pool().get('sale.sale')
+
+        sales = []
+        order_api = self.get_amazon_order_api()
+
+        for order_ids_batch in batch(amazon_order_ids, 50):
+            # The order fetch API limits getting orders to a maximum
+            # of 50 at a time
+            orders_data = order_api.get_order(order_ids_batch).parsed
+
+            for order in orders_data['Orders']['Order']:
+                already_imported = Sale.search([
+                    ('channel', '=', self.id),
+                    ('channel_identifier', '=', order['AmazonOrderId']['value']),
+                ])
+                if not already_imported:
+                    # New order! get the line items and save the order.
+                    order_line_data = order_api.list_order_items(
+                        order['AmazonOrderId']['value']
+                    ).parsed
+
+                    with Transaction().set_context({'current_channel': self.id}):
+                        sales.append(
+                            Sale.create_using_amazon_data(
+                                order,
+                                order_line_data['OrderItems']['OrderItem']
+                            )
+                        )
+                else:
+                    # Order is already there, just ensure it is in the
+                    # right status
+                    already_imported[0].update_order_status_from_amazon_mws(
+                        order
+                    )
         return sales
 
     def import_order(self, order_id):
-        "Downstream implementation of channel.import_order from sale channel"
+        """
+        Downstream implementation of channel.import_order from sale channel
+
+        WARNING: Using this API might result in you running out of Amazon
+        API call credits. Use the bulk import API instead
+        """
         if self.source != 'amazon_mws':
             return super(SaleChannel, self).import_order(order_id)
 
         Sale = Pool().get('sale.sale')
 
         sales = Sale.search([
+            ('channel', '=', self.id),
             ('channel_identifier', '=', order_id),
         ])
         if sales:
             return sales[0]
 
-        order_api = self.get_amazon_order_api()
-
-        for i in range(0, 10):
-            # Amazon API returns 503 sometime, Retry after exponential delay
-            try:
-                time.sleep(2 ** i)
-                order_data = order_api.get_order([order_id]).parsed
-            except mws.MWSError, e:
-                # Exception may occure due to 'RequestThrottled'
-                if e.response.status_code != 503 or \
-                        'RequestThrottled' not in e.response.content:
-                    raise
-                print "Failed get_order(%s): %s\nRetrying in %s sec..." % (
-                    order_id, e.message, 2 ** i
-                )
-                if i < 9:
-                    continue
-                else:
-                    raise
-            else:
-                break
-
-        order_line_data = order_api.list_order_items(
-            order_data['Orders']['Order']['AmazonOrderId']['value']
-        ).parsed
-
-        with Transaction().set_context({'current_channel': self.id}):
-            return Sale.create_using_amazon_data(
-                order_data['Orders']['Order'],
-                order_line_data['OrderItems']['OrderItem']
-            )
+        return self.import_order_bulk([order_id])[0]
 
     def _get_amazon_envelop(self, message_type, xml_list):
         """
