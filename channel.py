@@ -579,7 +579,7 @@ class SaleChannel:
         for order_ids_batch in batch(order_ids, 50):
             # The order fetch API limits getting orders to a maximum
             # of 50 at a time
-            response = order_api.get_order(order_ids[:50]).parsed
+            response = order_api.get_order(order_ids_batch).parsed
 
             if not isinstance(response['Orders']['Order'], list):
                 orders = [response['Orders']['Order']]
