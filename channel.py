@@ -448,32 +448,29 @@ class SaleChannel:
             return exisiting_listings[0].product
 
         products = Product.search([('code', '=', sku)])
-        listings = Listing.search([
-            ('product.code', '=', sku),
-            ('channel', '=', self)
-        ])
-
-        if not products or not listings:
-            # If product is not found get the info from amazon and
-            # delegate to create_using_amazon_data
-
+        if not products:
+            # Create a product since there is no match for an existing
+            # product with the SKU.
             product_api = self.get_amazon_product_api()
 
             product_data = product_api.get_matching_product_for_id(
                 self.amazon_marketplace_id, 'SellerSKU', [sku]
             ).parsed
 
-            # Create a product since there is no match for an existing
-            # product with the SKU.
-            if not products:
-                product = Product.create_from(self, product_data)
-            else:
-                product, = products
+            products = [Product.create_from(self, product_data)]
 
-            if not listings:
-                Listing.create_from(self, product_data)
-        else:
-            product = products[0]
+        product, = products
+        listings = Listing.search([
+            ('product', '=', product),
+            ('channel', '=', self),
+        ])
+        if not listings:
+            Listing(
+                product=product,
+                channel=self,
+                product_identifier=sku,
+                asin=product_data['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
+            ).save()
 
         return product
 
