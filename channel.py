@@ -195,6 +195,19 @@ class SaleChannel:
         else:
             orders = response['Orders']['Order']
 
+        while response.get('NextToken'):
+            # Pull data from pagination
+            response = order_api.list_orders_by_next_token(
+                response['NextToken']['value']
+            ).parsed
+
+            if not isinstance(response['Orders']['Order'], list):
+                new_orders = [response['Orders']['Order']]
+            else:
+                new_orders = response['Orders']['Order']
+
+            orders.extend(new_orders)
+
         # Update last order import time for channel
         self.write([self], {'last_order_import_time': datetime.utcnow()})
 
