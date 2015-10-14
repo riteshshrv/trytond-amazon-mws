@@ -234,35 +234,7 @@ class ProductSaleChannelListing:
         if self.channel.source != 'amazon_mws':
             return super(ProductSaleChannelListing, self).export_inventory()
 
-        Date = Pool().get('ir.date')
-        channel, product = self.channel, self.product
-
-        inventory_xml = []
-        with Transaction().set_context(
-                locations=[channel.warehouse.id],
-                stock_date_end=Date.today(),
-                stock_assign=True):
-            inventory_xml.append(E.Message(
-                E.MessageID(str(product.id)),
-                E.OperationType('Update'),
-                E.Inventory(
-                    E.SKU(self.product_identifier),
-                    E.Quantity(str(round(product.quantity))),
-                    E.FulfillmentLatency(
-                        str(product.template.delivery_time)
-                    ),
-                )
-            ))
-
-        envelope_xml = channel._get_amazon_envelop('Inventory', inventory_xml)
-
-        feeds_api = channel.get_amazon_feed_api()
-
-        feeds_api.submit_feed(
-            etree.tostring(envelope_xml),
-            feed_type='_POST_INVENTORY_AVAILABILITY_DATA_',
-            marketplaceids=[channel.amazon_marketplace_id]
-        )
+        self.export_bulk_inventory([self])
 
     @classmethod
     def export_bulk_inventory(cls, listings):
@@ -291,18 +263,17 @@ class ProductSaleChannelListing:
             channel = listing.channel
 
             # group inventory xml by channel
-            with Transaction().set_context(locations=[channel.warehouse.id]):
-                inventory_channel_map[channel].append(E.Message(
-                    E.MessageID(str(product.id)),
-                    E.OperationType('Update'),
-                    E.Inventory(
-                        E.SKU(listing.product_identifier),
-                        E.Quantity(str(round(product.quantity))),
-                        E.FulfillmentLatency(
-                            str(product.template.delivery_time)
-                        ),
-                    )
-                ))
+            inventory_channel_map[channel].append(E.Message(
+                E.MessageID(str(product.id)),
+                E.OperationType('Update'),
+                E.Inventory(
+                    E.SKU(listing.product_identifier),
+                    E.Quantity(str(round(listing.quantity))),
+                    E.FulfillmentLatency(
+                        str(product.template.delivery_time)
+                    ),
+                )
+            ))
 
         for channel, elements in inventory_channel_map.iteritems():
             envelope_xml = channel._get_amazon_envelop('Inventory', elements)
