@@ -167,5 +167,5 @@ class Address:
             zip=address_data['PostalCode']['value'],
             city=address_data['City']['value'],
             country=country.id,
-            subdivision=subdivision.id,
+            subdivision=subdivision and subdivision.id,
         )
