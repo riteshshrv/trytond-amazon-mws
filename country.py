@@ -17,16 +17,6 @@ class Subdivision:
     __name__ = 'country.subdivision'
 
     @classmethod
-    def __setup__(cls):
-        """
-        Setup the class before adding to pool
-        """
-        super(Subdivision, cls).__setup__()
-        cls._error_messages.update({
-            'state_not_found': 'State %s does not exist in country %s.',
-        })
-
-    @classmethod
     def search_using_amazon_state(cls, value, country):
         """
         Searches for state with given amazon StateOrRegion value.
@@ -47,8 +37,6 @@ class Subdivision:
             ], limit=1)
 
         if not subdivisions:
-            return cls.raise_user_error(
-                "state_not_found", error_args=(value, country.name)
-            )
+            return None
 
         return subdivisions[0]
