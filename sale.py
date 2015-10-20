@@ -186,17 +186,23 @@ class Sale:
         )
         amazon_channel.validate_amazon_channel()
         for order_item in order_items:
+            quantity = Decimal(order_item['QuantityOrdered']['value'])
             promotion_discount = Decimal(
                 order_item['PromotionDiscount']['Amount']['value']
                 if 'PromotionDiscount' in order_item else 0
             )
-            # TODO: Show promotion discount in sale order
-            amount = Decimal(order_item['ItemPrice']['Amount']['value']) - \
-                promotion_discount
-            quantity = Decimal(order_item['QuantityOrdered']['value'])
-            # TODO: Amazon doesn't send unit_price. This is the only way to
-            # calculate unit_price. Fix this if you have better.
-            unit_price = amount / quantity
+            if quantity == 0:
+                # XXX: If item is cancelled then quantity will be 0 and
+                # item price will not be there.
+                amount = 0
+                unit_price = 0
+            else:
+                # TODO: Show promotion discount in sale order
+                amount = Decimal(order_item['ItemPrice']['Amount']['value']) - \
+                    promotion_discount
+                # TODO: Amazon doesn't send unit_price. This is the only way to
+                # calculate unit_price. Fix this if you have better.
+                unit_price = amount / quantity
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
