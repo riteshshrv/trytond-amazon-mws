@@ -159,7 +159,10 @@ class Address:
         return Address(
             party=party.id,
             name=address_data['Name']['value'],
-            street=address_data['AddressLine1']['value'],
+            street=(
+                address_data.get('AddressLine1') and
+                address_data['AddressLine1']['value'] or None
+            ),
             streetbis=(
                 address_data.get('AddressLine2') and
                 address_data['AddressLine2'].get('value') or None
