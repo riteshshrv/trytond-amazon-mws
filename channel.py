@@ -228,10 +228,17 @@ class SaleChannel:
             # of 50 at a time
             orders_data = order_api.get_order(order_ids_batch).parsed
 
-            for order in orders_data['Orders']['Order']:
+            orders = orders_data['Orders']['Order']
+            if not isinstance(orders, list):
+                orders = [orders]
+
+            for order in orders:
                 already_imported = Sale.search([
                     ('channel', '=', self.id),
-                    ('channel_identifier', '=', order['AmazonOrderId']['value']),
+                    (
+                        'channel_identifier', '=',
+                        order['AmazonOrderId']['value']
+                    ),
                 ])
                 if not already_imported:
                     # New order! get the line items and save the order.
@@ -239,7 +246,9 @@ class SaleChannel:
                         order['AmazonOrderId']['value']
                     ).parsed
 
-                    with Transaction().set_context({'current_channel': self.id}):
+                    with Transaction().set_context(
+                        {'current_channel': self.id}
+                    ):
                         sales.append(
                             Sale.create_using_amazon_data(
                                 order,
