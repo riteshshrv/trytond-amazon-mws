@@ -162,11 +162,8 @@ class Sale:
         :param order_items: Order items
         :return: List of data of order lines in required format
         """
-        Uom = Pool().get('product.uom')
         SaleLine = Pool().get('sale.line')
         Channel = Pool().get('sale.channel')
-
-        unit, = Uom.search([('name', '=', 'Unit')])
 
         # Order lines are returned as dictionary for single record and as list
         # for mulitple reocrds.
@@ -207,7 +204,7 @@ class Sale:
                 SaleLine(
                     description=order_item['Title']['value'],
                     unit_price=unit_price,
-                    unit=unit.id,
+                    unit=amazon_channel.default_uom.id,
                     quantity=quantity,
                     product=amazon_channel.get_product(
                         order_item['SellerSKU']['value'],
@@ -232,9 +229,12 @@ class Sale:
         :param order_item: Order Data from amazon
         """
         SaleLine = Pool().get('sale.line')
-        Uom = Pool().get('product.uom')
+        Channel = Pool().get('sale.channel')
 
-        unit, = Uom.search([('name', '=', 'Unit')])
+        amazon_channel = Channel(
+            Transaction().context['current_channel']
+        )
+
         shipping_price = Decimal(
             order_item['ShippingPrice']['Amount']['value']
         )
@@ -245,7 +245,7 @@ class Sale:
         return SaleLine(
             description='Amazon Shipping and Handling',
             unit_price=(shipping_price - shipping_discount),
-            unit=unit.id,
+            unit=amazon_channel.default_uom.id,
             quantity=1
         )
 
