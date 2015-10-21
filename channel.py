@@ -3,7 +3,6 @@
     channle.py
 
 """
-import time
 from datetime import datetime
 from mws import mws
 from lxml import etree
@@ -11,11 +10,10 @@ from lxml.builder import E
 from dateutil.relativedelta import relativedelta
 
 from trytond.model import ModelView, fields
-from trytond.wizard import Wizard, StateView, Button, StateAction
+from trytond.wizard import Wizard, StateView, Button
 from trytond.transaction import Transaction
 from trytond.pyson import Eval
 from trytond.pool import Pool, PoolMeta
-from trytond.pyson import PYSONEncoder
 
 __metaclass__ = PoolMeta
 
@@ -230,10 +228,17 @@ class SaleChannel:
             # of 50 at a time
             orders_data = order_api.get_order(order_ids_batch).parsed
 
-            for order in orders_data['Orders']['Order']:
+            orders = orders_data['Orders']['Order']
+            if not isinstance(orders, list):
+                orders = [orders]
+
+            for order in orders:
                 already_imported = Sale.search([
                     ('channel', '=', self.id),
-                    ('channel_identifier', '=', order['AmazonOrderId']['value']),
+                    (
+                        'channel_identifier', '=',
+                        order['AmazonOrderId']['value']
+                    ),
                 ])
                 if not already_imported:
                     # New order! get the line items and save the order.
@@ -241,7 +246,9 @@ class SaleChannel:
                         order['AmazonOrderId']['value']
                     ).parsed
 
-                    with Transaction().set_context({'current_channel': self.id}):
+                    with Transaction().set_context(
+                        {'current_channel': self.id}
+                    ):
                         sales.append(
                             Sale.create_using_amazon_data(
                                 order,
@@ -722,60 +729,3 @@ class CheckAmazonSettings(Wizard):
             res['status'] = "Something went wrong. Please check account " + \
                 "settings again"
         return res
-
-
-class ImportAmazonOrdersView(ModelView):
-    "Import Orders View"
-    __name__ = 'channel.import_amazon_orders.view'
-
-    message = fields.Text("Message", readonly=True)
-
-
-class ImportAmazonOrders(Wizard):
-    """
-    Import Amazon Orders Wizard
-
-    Import orders for the current amazon channel
-    """
-    __name__ = 'channel.import_amazon_orders'
-
-    start = StateView(
-        'channel.import_amazon_orders.view',
-        'amazon_mws.import_amazon_orders_view_form',
-        [
-            Button('Cancel', 'end', 'tryton-cancel'),
-            Button('Continue', 'import_', 'tryton-ok', default=True),
-        ]
-    )
-
-    import_ = StateAction('sale.act_sale_form')
-
-    def default_start(self, data):
-        """
-        Sets default data for wizard
-        """
-        return {
-            'message':
-                'This wizard will import orders for this seller '
-                'account. It imports orders updated only after Last Order '
-                'Import Time.'
-        }
-
-    def do_import_(self, action):
-        """
-        Import orders and open records created
-        """
-        SaleChannel = Pool().get('sale.channel')
-
-        channel = SaleChannel(Transaction().context.get('active_id'))
-        channel.validate_amazon_channel()
-
-        sales = channel.import_amazon_orders()
-
-        action['pyson_domain'] = PYSONEncoder().encode([
-            ('id', 'in', map(int, sales))
-        ])
-        return action, {}
-
-    def transition_import_(self):
-        return 'end'
