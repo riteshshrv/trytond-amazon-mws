@@ -38,6 +38,7 @@ class TestSale(TestBase):
         Party = POOL.get('party.party')
         ContactMechanism = POOL.get('party.contact_mechanism')
         ChannelException = POOL.get('channel.exception')
+        Listing = POOL.get('product.product.channel_listing')
 
         with Transaction().start(DB_NAME, USER, CONTEXT):
             self.setup_defaults()
@@ -77,7 +78,14 @@ class TestSale(TestBase):
                         'value': line_data['SellerSKU']['value']
                     }
                 })
-                Product.create_using_amazon_data(product_data)
+                product = Product.create_from(self.sale_channel, product_data)
+
+                Listing(
+                    product=product,
+                    channel=self.sale_channel,
+                    product_identifier=line_data['SellerSKU']['value'],
+                    asin=product_data['Products']['Product']['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
+                ).save()
 
                 self.assertFalse(ChannelException.search([]))
 
@@ -105,6 +113,8 @@ class TestSale(TestBase):
         Party = POOL.get('party.party')
         ContactMechanism = POOL.get('party.contact_mechanism')
         ChannelException = POOL.get('channel.exception')
+        Listing = POOL.get('product.product.channel_listing')
+        ChannelState = POOL.get('sale.channel.order_state')
 
         with Transaction().start(DB_NAME, USER, CONTEXT):
             self.setup_defaults()
@@ -122,6 +132,18 @@ class TestSale(TestBase):
                 line_data = load_json(
                     'orders', 'order_items'
                 )['OrderItems']['OrderItem']
+
+                # Create Order State
+                # TODO: Add tests to import order states
+                ChannelState.create([{
+                    'name': 'Shipped',
+                    'code': 'Shipped',
+                    'action': 'import_as_past',
+                    'invoice_method': 'order',
+                    'shipment_method': 'order',
+                    'channel': self.sale_channel,
+                }])
+
                 self.assertFalse(
                     Party.search([
                         ('name', '=', order_data['BuyerEmail']['value'])
@@ -144,7 +166,14 @@ class TestSale(TestBase):
                         'value': line_data['SellerSKU']['value']
                     }
                 })
-                Product.create_using_amazon_data(product_data)
+                product = Product.create_from(self.sale_channel, product_data)
+
+                Listing(
+                    product=product,
+                    channel=self.sale_channel,
+                    product_identifier=line_data['SellerSKU']['value'],
+                    asin=product_data['Products']['Product']['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
+                ).save()
 
                 self.assertFalse(ChannelException.search([]))
 
@@ -152,11 +181,11 @@ class TestSale(TestBase):
                     order = Sale.create_using_amazon_data(order_data, line_data)
 
                 self.assertFalse(ChannelException.search([]))
+                self.assertEqual(order.state, 'done')
 
-                self.assertEqual(order.state, 'confirmed')
-
-                orders = Sale.search([('state', 'not in', 'draft')])
+                orders = Sale.search([('state', '=', 'done')])
                 self.assertEqual(len(orders), 1)
+
                 self.assertTrue(
                     Party.search([
                         ('name', '=', order_data['BuyerName']['value'])

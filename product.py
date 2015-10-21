@@ -8,17 +8,14 @@ from lxml import etree
 from lxml.builder import E
 from collections import defaultdict
 
-from trytond.model import ModelView, fields
+from trytond.model import fields
 from trytond.transaction import Transaction
-from trytond.wizard import Wizard, StateView, StateTransition, Button
 from trytond.pool import PoolMeta, Pool
 from trytond.pyson import Eval
 
 
 __all__ = [
-    'Product', 'ExportAmazonCatalogStart', 'ExportAmazonCatalog',
-    'ExportAmazonCatalogDone', 'ProductCode',
-    'Template', 'ProductSaleChannelListing',
+    'Product', 'ProductCode', 'Template', 'ProductSaleChannelListing',
 ]
 __metaclass__ = PoolMeta
 
@@ -152,70 +149,6 @@ class ProductCode:
             ('asin', 'ASIN'),
             ('gtin', 'GTIN')
         ])
-
-
-class ExportAmazonCatalogStart(ModelView):
-    'Export Catalog to Amazon View'
-    __name__ = 'amazon.export_catalog.start'
-
-
-class ExportAmazonCatalogDone(ModelView):
-    'Export Catalog to Amazon Done View'
-    __name__ = 'amazon.export_catalog.done'
-
-    status = fields.Char('Status', readonly=True)
-    submission_id = fields.Char('Submission ID', readonly=True)
-
-
-class ExportAmazonCatalog(Wizard):
-    '''Export catalog to Amazon
-
-    Export the products selected to this amazon account
-    '''
-    __name__ = 'amazon.export_catalog'
-
-    start = StateView(
-        'amazon.export_catalog.start',
-        'amazon_mws.export_catalog_start', [
-            Button('Cancel', 'end', 'tryton-cancel'),
-            Button('Continue', 'export_', 'tryton-ok', default=True),
-        ]
-    )
-    export_ = StateTransition()
-    done = StateView(
-        'amazon.export_catalog.done',
-        'amazon_mws.export_catalog_done', [
-            Button('OK', 'end', 'tryton-cancel'),
-        ]
-    )
-
-    def transition_export_(self):
-        """
-        Export the products selected to this amazon account
-        """
-        SaleChannel = Pool().get('sale.channel')
-
-        amazon_channel = SaleChannel(Transaction().context.get('active_id'))
-
-        # TODO: Move this wizard to sale channel module
-
-        response = amazon_channel.export_product_catalog()
-
-        Transaction().set_context({'response': response})
-
-        return 'done'
-
-    def default_done(self, fields):
-        "Display response"
-        response = Transaction().context['response']
-        return {
-            'status': response['FeedSubmissionInfo'][
-                'FeedProcessingStatus'
-            ]['value'],
-            'submission_id': response['FeedSubmissionInfo'][
-                'FeedSubmissionId'
-            ]['value']
-        }
 
 
 class ProductSaleChannelListing:

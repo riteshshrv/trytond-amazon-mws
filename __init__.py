@@ -11,8 +11,7 @@ from channel import (
     CheckAmazonSettingsView, CheckAmazonSettings
 )
 from product import (
-    Product, ExportAmazonCatalogStart, ExportAmazonCatalog,
-    ExportAmazonCatalogDone, ProductCode, Template,
+    Product, ProductCode, Template,
     ProductSaleChannelListing
 )
 from sale import Sale
@@ -30,8 +29,6 @@ def register():
         Product,
         ProductCode,
         Template,
-        ExportAmazonCatalogStart,
-        ExportAmazonCatalogDone,
         CheckAmazonServiceStatusView,
         CheckAmazonSettingsView,
         Sale,
@@ -45,6 +42,5 @@ def register():
     Pool.register(
         CheckAmazonServiceStatus,
         CheckAmazonSettings,
-        ExportAmazonCatalog,
         module='amazon_mws', type_='wizard'
     )
