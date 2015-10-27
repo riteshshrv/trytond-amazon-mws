@@ -547,26 +547,27 @@ class SaleChannel:
             for name in order_states_data:
                 self.create_order_state(name, name)
 
-    def get_default_tryton_action(self, name):
+    def get_default_tryton_action(self, code, name):
         """
         Returns tryton order state for amazon order status
         """
         if self.source != 'amazon_mws':
-            return super(SaleChannel, self).get_default_tryton_action(name)
+            return super(SaleChannel, self).get_default_tryton_action(
+                code, name)
 
-        if name == 'PartiallyShipped':
+        if code == 'PartiallyShipped':
             return {
                 'action': 'process_manually',
                 'invoice_method': 'shipment',
                 'shipment_method': 'order'
             }
-        elif name == 'Unshipped':
+        elif code == 'Unshipped':
             return {
                 'action': 'process_automatically',
                 'invoice_method': 'shipment',
                 'shipment_method': 'order'
             }
-        elif name in (
+        elif code in (
             'Pending', 'Canceled', 'InvoiceUnconfirmed',
             'Unfulfillable',
         ):
@@ -575,7 +576,7 @@ class SaleChannel:
                 'invoice_method': 'manual',
                 'shipment_method': 'manual'
             }
-        elif name == 'Shipped':
+        elif code == 'Shipped':
             return {
                 'action': 'import_as_past',
                 'invoice_method': 'order',
