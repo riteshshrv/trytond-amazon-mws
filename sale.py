@@ -242,8 +242,15 @@ class Sale:
             order_item['ShippingDiscount']['Amount']['value']
         )
 
+        shipping_description = 'Amazon Shipping and Handling'
+        if order_item.get('ShipServiceLevel'):
+            shipping_description += "\nShipServiceLevel: %s" % order_item['ShipServiceLevel']['value']  # noqa
+
+        if order_item.get('ShipmentServiceLevelCategory'):
+            shipping_description += "\nShipmentServiceLevelCategory: %s" % order_item['ShipmentServiceLevelCategory']['value']  # noqa
+
         return SaleLine(
-            description='Amazon Shipping and Handling',
+            description=shipping_description,
             unit_price=(shipping_price - shipping_discount),
             unit=amazon_channel.default_uom.id,
             quantity=1
