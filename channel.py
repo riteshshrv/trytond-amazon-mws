@@ -3,6 +3,7 @@
     channle.py
 
 """
+import logging
 from datetime import datetime
 from mws import mws
 from lxml import etree
@@ -26,6 +27,8 @@ AMAZON_MWS_STATES = {
     'required': Eval('source') == 'amazon_mws',
     'invisible': ~(Eval('source') == 'amazon_mws')
 }
+
+logger = logging.getLogger("amazon_mws")
 
 
 def batch(iterable, n=1):
@@ -600,7 +603,15 @@ class SaleChannel:
         for order_ids_batch in batch(order_ids, 50):
             # The order fetch API limits getting orders to a maximum
             # of 50 at a time
-            response = order_api.get_order(order_ids_batch).parsed
+            try:
+                response = order_api.get_order(order_ids_batch).parsed
+            except mws.MWSError, e:
+                # Do not continue further in this method as further calls
+                # to amazon will raise same error for further calls,
+                # but calling return will let updated orders commit to
+                # database. Else this will become a never ending process.
+                logger.warning(e.message)
+                return
 
             if not isinstance(response['Orders']['Order'], list):
                 orders = [response['Orders']['Order']]
