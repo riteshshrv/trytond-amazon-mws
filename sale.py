@@ -150,12 +150,14 @@ class Sale:
                 order_data['PurchaseDate']['value']
             ).date(),
             currency=currency.id,
-            lines=cls.get_item_line_data_using_amazon_data(line_data),
+            lines=cls.get_item_line_data_using_amazon_data(
+                order_data, line_data
+            ),
             channel_identifier=order_data['AmazonOrderId']['value'],
         )
 
     @classmethod
-    def get_item_line_data_using_amazon_data(cls, line_data):
+    def get_item_line_data_using_amazon_data(cls, order_data, line_data):
         """
         Make data for an item line from the amazon data.
 
@@ -216,13 +218,15 @@ class Sale:
             if order_item.get('ShippingPrice') and \
                order_item['ShippingPrice']['Amount']['value']:
                 sale_lines.append(
-                    cls.get_shipping_line_data_using_amazon_data(order_item)
+                    cls.get_shipping_line_data_using_amazon_data(
+                        order_data, order_item
+                    )
                 )
 
         return sale_lines
 
     @classmethod
-    def get_shipping_line_data_using_amazon_data(cls, order_item):
+    def get_shipping_line_data_using_amazon_data(cls, order_data, order_item):
         """
         Create a shipping line for the given sale using amazon data
 
@@ -243,11 +247,11 @@ class Sale:
         )
 
         shipping_description = 'Amazon Shipping and Handling'
-        if order_item.get('ShipServiceLevel'):
-            shipping_description += "\nShipServiceLevel: %s" % order_item['ShipServiceLevel']['value']  # noqa
+        if order_data.get('ShipServiceLevel'):
+            shipping_description += "\nShipServiceLevel: %s" % order_data['ShipServiceLevel']['value']  # noqa
 
-        if order_item.get('ShipmentServiceLevelCategory'):
-            shipping_description += "\nShipmentServiceLevelCategory: %s" % order_item['ShipmentServiceLevelCategory']['value']  # noqa
+        if order_data.get('ShipmentServiceLevelCategory'):
+            shipping_description += "\nShipmentServiceLevelCategory: %s" % order_data['ShipmentServiceLevelCategory']['value']  # noqa
 
         return SaleLine(
             description=shipping_description,
