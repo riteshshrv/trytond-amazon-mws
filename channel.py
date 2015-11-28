@@ -229,7 +229,15 @@ class SaleChannel:
         for order_ids_batch in batch(amazon_order_ids, 50):
             # The order fetch API limits getting orders to a maximum
             # of 50 at a time
-            orders_data = order_api.get_order(order_ids_batch).parsed
+            try:
+                orders_data = order_api.get_order(order_ids_batch).parsed
+            except mws.MWSError, e:
+                # Do not continue further in this method as further calls
+                # to amazon will raise same error for further calls,
+                # but calling return will let imported orders commit to
+                # database. Else this will become a never ending process.
+                logger.warning(e.message)
+                return sales
 
             orders = orders_data['Orders']['Order']
             if not isinstance(orders, list):
