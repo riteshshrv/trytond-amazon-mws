@@ -229,7 +229,15 @@ class SaleChannel:
         for order_ids_batch in batch(amazon_order_ids, 50):
             # The order fetch API limits getting orders to a maximum
             # of 50 at a time
-            orders_data = order_api.get_order(order_ids_batch).parsed
+            try:
+                orders_data = order_api.get_order(order_ids_batch).parsed
+            except mws.MWSError, e:
+                # Do not continue further in this method as further calls
+                # to amazon will raise same error for further calls,
+                # but calling return will let imported orders commit to
+                # database. Else this will become a never ending process.
+                logger.warning(e.message)
+                return sales
 
             orders = orders_data['Orders']['Order']
             if not isinstance(orders, list):
@@ -336,13 +344,13 @@ class SaleChannel:
             if not product.code:
                 self.raise_user_error(
                     'missing_product_code', {
-                        'product': product.template.name
+                        'product': product.name
                     }
                 )
             if not product.codes:
                 self.raise_user_error(
                     'missing_product_codes', {
-                        'product': product.template.name
+                        'product': product.name
                     }
                 )
             # Get the product's code to be set as standard ID to amazon
@@ -360,7 +368,7 @@ class SaleChannel:
                         E.Value(product_standard_id.code),
                     ),
                     E.DescriptionData(
-                        E.Title(product.template.name),
+                        E.Title(product.name),
                         E.Description(product.description),
                     ),
                     # Amazon needs this information so as to place the product
