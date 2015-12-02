@@ -183,7 +183,7 @@ class ProductSaleChannelListing:
             ('channel.source', '!=', 'amazon_mws'),
         ])
         if non_amazon_listings:
-            return super(ProductSaleChannelListing, cls).export_bulk_inventory(
+            super(ProductSaleChannelListing, cls).export_bulk_inventory(
                 non_amazon_listings
             )
         amazon_listings = filter(
