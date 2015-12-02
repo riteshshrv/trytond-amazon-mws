@@ -203,7 +203,7 @@ class ProductSaleChannelListing:
                     E.SKU(listing.product_identifier),
                     E.Quantity(str(round(listing.quantity))),
                     E.FulfillmentLatency(
-                        str(product.template.delivery_time)
+                        str(product.delivery_time)
                     ),
                 )
             ))

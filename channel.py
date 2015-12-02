@@ -344,13 +344,13 @@ class SaleChannel:
             if not product.code:
                 self.raise_user_error(
                     'missing_product_code', {
-                        'product': product.template.name
+                        'product': product.name
                     }
                 )
             if not product.codes:
                 self.raise_user_error(
                     'missing_product_codes', {
-                        'product': product.template.name
+                        'product': product.name
                     }
                 )
             # Get the product's code to be set as standard ID to amazon
@@ -368,7 +368,7 @@ class SaleChannel:
                         E.Value(product_standard_id.code),
                     ),
                     E.DescriptionData(
-                        E.Title(product.template.name),
+                        E.Title(product.name),
                         E.Description(product.description),
                     ),
                     # Amazon needs this information so as to place the product
