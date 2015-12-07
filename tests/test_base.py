@@ -239,6 +239,7 @@ class TestBase(unittest.TestCase):
             'amazon_access_key': 'AWS1',
             'amazon_secret_key': 'S013',
             'warehouse': warehouse.id,
+            'fba_warehouse': warehouse.id,
             'company': self.company.id,
             'source': 'amazon_mws',
             'currency': self.company.currency.id,

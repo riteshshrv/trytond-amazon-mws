@@ -97,6 +97,10 @@ class Sale:
         sale.invoice_address = party_invoice_address.id
         sale.shipment_address = party_shipping_address.id
         sale.channel = amazon_channel.id
+
+        if order_data['FulfillmentChannel']['value'] == 'AFN':
+            sale.warehouse = amazon_channel.fba_warehouse.id
+
         sale.save()
 
         # TODO: Handle Discounts

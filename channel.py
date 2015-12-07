@@ -55,6 +55,11 @@ class SaleChannel:
     amazon_secret_key = fields.Char(
         "Secret Key", states=AMAZON_MWS_STATES, depends=['source']
     )
+    fba_warehouse = fields.Many2One(
+        'stock.location', 'Warehouse (Fulfilled By Amazon)',
+        domain=[('type', '=', 'warehouse')],
+        states=AMAZON_MWS_STATES, depends=['source']
+    )
 
     @classmethod
     def get_source(cls):
