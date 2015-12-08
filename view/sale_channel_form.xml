@@ -10,6 +10,8 @@
             <field name="amazon_access_key"/>
             <label name="amazon_secret_key"/>
             <field name="amazon_secret_key" widget="password"/>
+            <label name="fba_warehouse"/>
+            <field name="fba_warehouse"/>
             <newline/>
         </group>
     </xpath>
