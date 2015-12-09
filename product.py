@@ -160,6 +160,10 @@ class ProductSaleChannelListing:
         'invisible': Eval('channel_source') != 'amazon_mws',
     }, depends=['channel_source'])
 
+    fba_code = fields.Char('Code (Fulfilled By Amazon', states={
+        'invisible': Eval('channel_source') == 'amazon_mws',
+    }, depends=['channel_source'])
+
     def export_inventory(self):
         """
         Export inventory of this listing to external channel
