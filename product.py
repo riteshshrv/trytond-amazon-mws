@@ -105,6 +105,8 @@ class Product:
         :returns: Active record of product created
         """
         Template = Pool().get('product.template')
+        Currency = Pool().get('currency.currency')
+        SaleChannel = Pool().get('sale.channel')
 
         # TODO: Handle attribute sets in multiple languages
         product_attribute_set = product_data['Products']['Product'][
@@ -119,11 +121,28 @@ class Product:
             product_attributes
         )
 
+        amazon_channel = SaleChannel(
+            Transaction().context['current_channel']
+        )
+        assert amazon_channel.source == 'amazon_mws'
+
+        list_price = Decimal('0.01')
+        if product_attributes.get('ListPrice'):
+            list_price = product_attributes['ListPrice']['Amount']['value']
+            currency_code = product_attributes['ListPrice']['CurrencyCode']['value']  # noqa
+            currency, = Currency.search([
+                ('code', '=', currency_code),
+            ], limit=1)
+            list_price = Currency.compute(
+                currency, Decimal(list_price),
+                amazon_channel.company.currency
+            )
+
         product_values.update({
             'products': [('create', [{
                 'code': product_data['Id']['value'],
-                'list_price': Decimal('0.01'),
-                'cost_price': Decimal('0.01'),
+                'list_price': list_price,
+                'cost_price': list_price,
                 'description': product_attributes['Title']['value'],
             }])],
         })

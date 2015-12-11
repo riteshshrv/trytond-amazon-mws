@@ -72,7 +72,7 @@ class TestSale(TestBase):
                 )
 
                 # Create product using sku
-                product_data = load_json('products', 'product-1')
+                product_data = load_json('products', 'product-2')
                 product_data.update({
                     'Id': {
                         'value': line_data['SellerSKU']['value']
@@ -160,7 +160,7 @@ class TestSale(TestBase):
                 )
 
                 # Create product using sku
-                product_data = load_json('products', 'product-1')
+                product_data = load_json('products', 'product-2')
                 product_data.update({
                     'Id': {
                         'value': line_data['SellerSKU']['value']
