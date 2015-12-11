@@ -81,7 +81,7 @@ class TestProduct(TestBase):
             ):
                 self.assertEqual(Product.search([], count=True), 0)
 
-                product_data = load_json('products', 'product-1')
+                product_data = load_json('products', 'product-2')
                 Product.create_using_amazon_data(product_data)
 
                 self.assertEqual(Product.search([], count=True), 1)
