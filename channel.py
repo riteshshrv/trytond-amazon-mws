@@ -459,7 +459,7 @@ class SaleChannel:
 
         return len(pricing_xml)
 
-    def import_product(self, sku):
+    def import_product(self, sku, product_data=None):
         """
         Import specific product for this amazon channel
         Downstream implementation for channel.import_product
@@ -471,7 +471,9 @@ class SaleChannel:
         Listing = Pool().get('product.product.channel_listing')
 
         if self.source != 'amazon_mws':
-            return super(SaleChannel, self).import_product(sku)
+            return super(SaleChannel, self).import_product(
+                sku, product_data
+            )
 
         # Check if there is a poduct with the seller SKU
         # The SKU on the product could be different from that of the
