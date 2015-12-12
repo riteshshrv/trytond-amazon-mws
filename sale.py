@@ -206,6 +206,10 @@ class Sale:
                 # TODO: Amazon doesn't send unit_price. This is the only way to
                 # calculate unit_price. Fix this if you have better.
                 unit_price = amount / quantity
+            product_data = {
+                'FulfillmentChannel': order_data['FulfillmentChannel']['value'],
+                'ASIN': line_data['ASIN']['value']
+            }
             sale_lines.append(
                 SaleLine(
                     description=order_item['Title']['value'],
@@ -214,6 +218,7 @@ class Sale:
                     quantity=quantity,
                     product=amazon_channel.get_product(
                         order_item['SellerSKU']['value'],
+                        product_data,
                     ).id,
                     channel_identifier=order_item['OrderItemId']['value'],
                 )
