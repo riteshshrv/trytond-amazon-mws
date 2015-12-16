@@ -475,27 +475,39 @@ class SaleChannel:
                 sku, product_data
             )
 
-        # Check if there is a poduct with the seller SKU
-        # The SKU on the product could be different from that of the
-        # listing. Say older SKUs or Amazon assigned SKUs.
+        # Check if there is a poduct with the seller SKU.
+        # Products being sold as AFN and MFN will have same ASIN.
+        # ASIN is unique only in a marketplace, so search asin
+        # with channel.
         exisiting_listings = Listing.search([
-            ('product_identifier', '=', sku),
+            ('asin', '=', product_data['ASIN']),
             ('channel', '=', self),
         ])
+
         if exisiting_listings:
-            return exisiting_listings[0].product
+            exisiting_listing, = exisiting_listings[0]
+
+            # Update Listing to respect FBA Design
+            if product_data['FulfillmentChannel'] == 'AFN' and \
+                    not exisiting_listing.fba_code:
+                exisiting_listing.fba_code = sku
+                exisiting_listing.save()
+
+            return exisiting_listing.product
 
         products = Product.search([('code', '=', sku)])
         product_api = self.get_amazon_product_api()
+        full_product_data = None
         if not products:
             # Create a product since there is no match for an existing
             # product with the SKU.
 
-            product_data = product_api.get_matching_product_for_id(
-                self.amazon_marketplace_id, 'SellerSKU', [sku]
-            ).parsed
+            full_product_data = full_product_data or \
+                product_api.get_matching_product_for_id(
+                    self.amazon_marketplace_id, 'SellerSKU', [sku]
+                ).parsed
 
-            products = [Product.create_from(self, product_data)]
+            products = [Product.create_from(self, full_product_data)]
 
         product, = products
         listings = Listing.search([
@@ -503,14 +515,16 @@ class SaleChannel:
             ('channel', '=', self),
         ])
         if not listings:
-            product_data = product_api.get_matching_product_for_id(
-                self.amazon_marketplace_id, 'SellerSKU', [sku]
-            ).parsed
+            full_product_data = full_product_data or \
+                product_api.get_matching_product_for_id(
+                    self.amazon_marketplace_id, 'SellerSKU', [sku]
+                ).parsed
             Listing(
                 product=product,
                 channel=self,
                 product_identifier=sku,
-                asin=product_data['Products']['Product']['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
+                fba_code=sku if product_data['FulfillmentChannel'] == 'AFN' else None,  # noqa
+                asin=full_product_data['Products']['Product']['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
             ).save()
 
         return product
