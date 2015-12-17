@@ -208,7 +208,7 @@ class Sale:
                 unit_price = amount / quantity
             product_data = {
                 'FulfillmentChannel': order_data['FulfillmentChannel']['value'],
-                'ASIN': line_data['ASIN']['value']
+                'ASIN': order_item['ASIN']['value']
             }
             sale_lines.append(
                 SaleLine(
