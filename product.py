@@ -224,9 +224,9 @@ class ProductSaleChannelListing:
                 E.OperationType('Update'),
                 E.Inventory(
                     E.SKU(listing.product_identifier),
-                    E.Quantity(str(round(listing.quantity))),
+                    E.Quantity("%d" % round(listing.quantity)),
                     E.FulfillmentLatency(
-                        str(product.delivery_time)
+                        "%d" % max(product.delivery_time, 1)
                     ),
                 )
             ))
