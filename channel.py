@@ -485,7 +485,7 @@ class SaleChannel:
         ])
 
         if exisiting_listings:
-            exisiting_listing, = exisiting_listings[0]
+            exisiting_listing, = exisiting_listings
 
             # Update Listing to respect FBA Design
             if product_data['FulfillmentChannel'] == 'AFN' and \
