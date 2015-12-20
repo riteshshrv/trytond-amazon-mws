@@ -177,6 +177,16 @@ class SaleChannel:
         Date = Pool().get('ir.date')
 
         order_api = self.get_amazon_order_api()
+        order_states = self.get_order_states_to_import()
+
+        order_states_to_import_in = set([])
+        for order_state in order_states:
+            order_states_to_import_in.add(order_state.code)
+            if order_state.code in ('Unshipped', 'PartiallyShipped'):
+                # Amazon need `Unshipped` and `PartiallyShipped` orderstatus
+                # together.
+                order_states_to_import_in.update(
+                    ('Unshipped', 'PartiallyShipped'))
 
         created_after = (
             Date.today() - relativedelta(months=1)
@@ -187,7 +197,7 @@ class SaleChannel:
             # Unshipped and PartiallyShipped must be used together in
             # this version of the Orders API section. Using one and not
             # the other returns an error.
-            orderstatus=('Unshipped', 'PartiallyShipped')
+            orderstatus=order_states_to_import_in
         ).parsed
 
         if not response.get('Orders'):
