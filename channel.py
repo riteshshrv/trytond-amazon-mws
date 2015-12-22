@@ -177,7 +177,10 @@ class SaleChannel:
         Date = Pool().get('ir.date')
 
         order_api = self.get_amazon_order_api()
-        order_states = self.get_order_states_to_import()
+        with Transaction().set_context(include_past_orders=True):
+            # Import past orders by default in case of Amazon
+            # to include FBA orders also.
+            order_states = self.get_order_states_to_import()
 
         order_states_to_import_in = set([])
         for order_state in order_states:

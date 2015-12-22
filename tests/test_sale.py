@@ -328,6 +328,68 @@ class TestSale(TestBase):
                     ], count=True), 1
                 )
 
+    def test_0040_check_fba_orders_processing(self):
+        """
+        Tests handling of shipment of FBA type orders.
+        """
+        Sale = POOL.get('sale.sale')
+        Product = POOL.get('product.product')
+        Listing = POOL.get('product.product.channel_listing')
+        ChannelState = POOL.get('sale.channel.order_state')
+
+        with Transaction().start(DB_NAME, USER, CONTEXT):
+            self.setup_defaults()
+
+            with Transaction().set_context({
+                'current_channel': self.sale_channel.id,
+            }):
+
+                orders = Sale.search([])
+                self.assertEqual(len(orders), 0)
+
+                order_data = load_json(
+                    'orders', 'order_list_afn'
+                )['Orders']['Order']
+                line_data = load_json(
+                    'orders', 'order_items_afn'
+                )['OrderItems']['OrderItem']
+
+                # Create Order State
+                ChannelState.create([{
+                    'name': 'Shipped',
+                    'code': 'Shipped',
+                    'action': 'import_as_past',
+                    'invoice_method': 'order',
+                    'shipment_method': 'order',
+                    'channel': self.sale_channel,
+                }])
+
+                # Create product using sku
+                product_data = load_json('products', 'product-2')
+                product_data.update({
+                    'Id': {
+                        'value': line_data['SellerSKU']['value']
+                    }
+                })
+                product = Product.create_from(self.sale_channel, product_data)
+
+                Listing(
+                    product=product,
+                    channel=self.sale_channel,
+                    product_identifier=line_data['SellerSKU']['value'],
+                    asin=product_data['Products']['Product']['Identifiers']["MarketplaceASIN"]["ASIN"]["value"],  # noqa
+                ).save()
+
+                self.assertEqual(
+                    order_data['FulfillmentChannel']['value'], "AFN"
+                )
+
+                with Transaction().set_context(company=self.company.id):
+                    sale = Sale.create_using_amazon_data(order_data, line_data)
+
+                    self.assertEqual(sale.state, 'done')
+                    self.assertEqual(sale.shipment_state, 'sent')
+
 
 def suite():
     """
