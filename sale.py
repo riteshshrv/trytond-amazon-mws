@@ -100,6 +100,8 @@ class Sale:
 
         if order_data['FulfillmentChannel']['value'] == 'AFN':
             sale.warehouse = amazon_channel.fba_warehouse.id
+            sale.invoice_method = 'manual'
+            sale.shipment_method = 'order'
 
         sale.save()
 
@@ -122,7 +124,10 @@ class Sale:
             order_data['OrderStatus']['value']
         )
         try:
-            sale.process_to_channel_state(order_data['OrderStatus']['value'])
+            if order_data['FulfillmentChannel']['value'] == 'MFN':
+                sale.process_to_channel_state(order_data['OrderStatus']['value'])  # noqa
+            elif order_data['FulfillmentChannel']['value'] == 'AFN':
+                sale.process_fba_order()
         except UserError, e:
             # Expecting UserError will only come when sale order has
             # channel exception.
@@ -304,3 +309,25 @@ class Sale:
                     Shipment.done([shipment])
 
             # TODO: handle invoices?
+
+    def process_fba_order(self):
+        """
+        Process FBA Orders as they are imported as past orders
+        and handle their shipments.
+        """
+        Sale = Pool().get('sale.sale')
+        Shipment = Pool().get('stock.shipment.out')
+
+        Sale.quote([self])
+        Sale.confirm([self])
+        Sale.process([self])
+
+        for shipment in self.shipments:
+            if shipment.state == 'draft':
+                Shipment.wait([shipment])
+            if shipment.state == 'waiting':
+                Shipment.assign([shipment])
+            if shipment.state == 'assigned':
+                Shipment.pack([shipment])
+            if shipment.state == 'packed':
+                Shipment.done([shipment])
