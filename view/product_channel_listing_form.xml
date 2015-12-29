@@ -1,0 +1,6 @@
+<data>
+	<xpath expr="/form/field[@name='product_identifier']" position="after">
+	    <label name="asin"/>
+	    <field name="asin"/>
+	</xpath>
+</data>

@@ -10,5 +10,11 @@ this repository contains the full copyright notices and license terms. -->
             <field name="name">template_form</field>
         </record>
 
+        <record model="ir.ui.view" id="product_channel_listing_view_form">
+            <field name="model">product.product.channel_listing</field>
+            <field name="inherit" ref="sale_channel.product_sale_channel_listing_form"/>
+            <field name="name">product_channel_listing_form</field>
+        </record>
+
   </data>
 </tryton>
