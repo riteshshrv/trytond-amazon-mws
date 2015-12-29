@@ -191,12 +191,12 @@ class SaleChannel:
                 order_states_to_import_in.update(
                     ('Unshipped', 'PartiallyShipped'))
 
-        created_after = (
-            Date.today() - relativedelta(months=1)
+        lastupdatedafter = (
+            Date.today() - relativedelta(days=10)
         ).strftime('%Y-%m-%dT00:00:01Z')
         response = order_api.list_orders(
             marketplaceids=[self.amazon_marketplace_id],
-            created_after=created_after,
+            lastupdatedafter=lastupdatedafter,
             # Unshipped and PartiallyShipped must be used together in
             # this version of the Orders API section. Using one and not
             # the other returns an error.
