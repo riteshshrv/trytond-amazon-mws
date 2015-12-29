@@ -235,11 +235,9 @@ class SaleChannel:
         # Update last order import time for channel
         self.write([self], {'last_order_import_time': datetime.utcnow()})
 
-        return self.import_order_bulk(
-            [o['AmazonOrderId']['value'] for o in orders]
-        )
+        return self.import_mws_order_bulk(orders)
 
-    def import_order_bulk(self, amazon_order_ids):
+    def import_mws_order_bulk(self, amazon_orders_data):
         """
         It is expensive to get orders one by one and in addition, it will
         throttle the API requests.
@@ -249,52 +247,36 @@ class SaleChannel:
         sales = []
         order_api = self.get_amazon_order_api()
 
-        for order_ids_batch in batch(amazon_order_ids, 50):
-            # The order fetch API limits getting orders to a maximum
-            # of 50 at a time
-            try:
-                orders_data = order_api.get_order(order_ids_batch).parsed
-            except mws.MWSError, e:
-                # Do not continue further in this method as further calls
-                # to amazon will raise same error for further calls,
-                # but calling return will let imported orders commit to
-                # database. Else this will become a never ending process.
-                logger.warning(e.message)
-                return sales
+        for order in amazon_orders_data:
+            already_imported = Sale.search([
+                ('channel', '=', self.id),
+                (
+                    'channel_identifier', '=',
+                    order['AmazonOrderId']['value']
+                ),
+            ])
+            if not already_imported:
+                # New order! get the line items and save the order.
+                order_line_data = order_api.list_order_items(
+                    order['AmazonOrderId']['value']
+                ).parsed
 
-            orders = orders_data['Orders']['Order']
-            if not isinstance(orders, list):
-                orders = [orders]
-
-            for order in orders:
-                already_imported = Sale.search([
-                    ('channel', '=', self.id),
-                    (
-                        'channel_identifier', '=',
-                        order['AmazonOrderId']['value']
-                    ),
-                ])
-                if not already_imported:
-                    # New order! get the line items and save the order.
-                    order_line_data = order_api.list_order_items(
-                        order['AmazonOrderId']['value']
-                    ).parsed
-
-                    with Transaction().set_context(
-                        {'current_channel': self.id}
-                    ):
-                        sales.append(
-                            Sale.create_using_amazon_data(
-                                order,
-                                order_line_data['OrderItems']['OrderItem']
-                            )
+                with Transaction().set_context(
+                    {'current_channel': self.id}
+                ):
+                    sales.append(
+                        Sale.create_using_amazon_data(
+                            order,
+                            order_line_data['OrderItems']['OrderItem']
                         )
-                else:
-                    # Order is already there, just ensure it is in the
-                    # right status
-                    already_imported[0].update_order_status_from_amazon_mws(
-                        order
                     )
+            else:
+                # Order is already there, just ensure it is in the
+                # right status
+                sales.append(already_imported[0])
+                already_imported[0].update_order_status_from_amazon_mws(
+                    order
+                )
         return sales
 
     def import_order(self, order_id):
@@ -316,7 +298,17 @@ class SaleChannel:
         if sales:
             return sales[0]
 
-        return self.import_order_bulk([order_id])[0]
+        order_api = self.get_amazon_order_api()
+        response = order_api.get_order([order_id]).parsed
+
+        # Orders are returned as dictionary for single order
+        # and import_mws_order_bulk expects list of order_data
+        # so convert the response to list
+        orders = response['Orders']['Order']
+        if not isinstance(orders, list):
+            orders = [orders]
+
+        return self.import_mws_order_bulk(orders)[0]
 
     def _get_amazon_envelop(self, message_type, xml_list):
         """
