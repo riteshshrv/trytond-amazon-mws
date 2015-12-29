@@ -216,9 +216,14 @@ class SaleChannel:
 
         while response.get('NextToken'):
             # Pull data from pagination
-            response = order_api.list_orders_by_next_token(
-                response['NextToken']['value']
-            ).parsed
+            # TRY to fetch more orders, if api call limit is reached then
+            # do not continue.
+            try:
+                response = order_api.list_orders_by_next_token(
+                    response['NextToken']['value']
+                ).parsed
+            except mws.MWSError:
+                break
 
             if not isinstance(response['Orders']['Order'], list):
                 new_orders = [response['Orders']['Order']]
