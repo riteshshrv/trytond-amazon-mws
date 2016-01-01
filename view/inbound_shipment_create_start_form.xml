@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<form string="Create Inbound Shipment">
+    <label name="from_location"/>
+    <field name="from_location"/>
+    <label name="to_location"/>
+    <field name="to_location"/>
+    <field name="products" colspan="4"/>
+</form>

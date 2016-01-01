@@ -6,11 +6,16 @@ from collections import defaultdict
 from lxml.builder import E
 from lxml import etree
 from trytond.pool import PoolMeta, Pool
-from trytond.pyson import Eval
-from trytond.model import fields
+from trytond.pyson import Eval, PYSONEncoder
+from trytond.model import ModelView, fields
+from trytond.wizard import Wizard, StateAction, StateView, Button
 
 
-__all__ = ['ShipmentOut', 'StockLocation']
+__all__ = [
+    'ShipmentOut', 'StockLocation', 'ShipmentInternal',
+    'InboundShipmentProducts', 'InboundShipmentCreateStart',
+    'InboundShipmentCreate'
+]
 __metaclass__ = PoolMeta
 
 
@@ -128,3 +133,213 @@ class ShipmentOut:
                 feed_type='_POST_ORDER_FULFILLMENT_DATA_',
                 marketplaceids=[sale.channel.amazon_marketplace_id]
             )
+
+
+class ShipmentInternal:
+    "Internal Shipment"
+    __name__ = 'stock.shipment.internal'
+
+    mws_inbound_shipment_id = fields.Char(
+        "MWS Inbound Shipment ID", readonly=True,
+        states={
+            'invisible': Eval('channel_source') != 'amazon_mws'
+        }, depends=['channel_source']
+    )
+
+    channel_source = fields.Function(
+        fields.Char("Channel Source"), "on_change_with_channel_source"
+    )
+
+    @fields.depends('to_location')
+    def on_change_with_channel_source(self, name=None):
+        return (self.to_location.parent.channel and self.to_location.parent) \
+            and self.to_location.parent.channel.source or None
+
+
+class InboundShipmentProducts(ModelView):
+    "Inbound Shipment Products"
+    __name__ = 'inbound_shipment.products'
+
+    product = fields.Many2One("product.product", "Product", required=True)
+    quantity = fields.Integer("Quantity", required=True)
+
+
+class InboundShipmentCreateStart(ModelView):
+    "Create Inbound Shipment Start"
+    __name__ = "inbound_shipment.create.start"
+
+    from_location = fields.Many2One(
+        'stock.location', "From Location", required=True, domain=[
+            ('type', 'in', ['view', 'storage', 'lost_found']),
+        ]
+    )
+    to_location = fields.Many2One(
+        'stock.location', "To Location", required=True, domain=[
+            ('type', 'in', ['view', 'storage', 'lost_found']),
+            ('parent.subtype', '=', 'fba'),
+            ('parent.channel.source', '=', 'amazon_mws'),
+        ]
+    )
+    products = fields.One2Many(
+        "inbound_shipment.products", None, "Product", required=True
+    )
+
+
+class InboundShipmentCreate(Wizard):
+    "Create Inbound Shipment"
+    __name__ = "inbound_shipment.create"
+
+    start = StateView(
+        'inbound_shipment.create.start',
+        'amazon_mws.inbound_shipment_create_start_form',
+        [
+            Button('Cancel', 'end', 'tryton-cancel'),
+            Button('Create', 'create_', 'tryton-go-next', default=True),
+        ]
+    )
+    create_ = StateAction('stock.act_shipment_internal_form')
+
+    def find_product_using_sku(self, sku, channel):
+        """
+        Search product with given sku and channel
+        """
+        Listing = Pool().get('product.product.channel_listing')
+
+        listings = Listing.search([
+            ('channel', '=', channel.id),
+            ['OR',
+                [
+                    ('fba_code', '=', sku)
+                ], [
+                    ('product.code', '=', sku)
+                ]
+             ]
+        ], limit=1)
+
+        return listings and listings[0].product or None
+
+    def create_inbound_shipment(self):
+        Listing = Pool().get('product.product.channel_listing')
+        Shipment = Pool().get('stock.shipment.internal')
+
+        to_warehouse = self.start.to_location.parent
+        to_location = self.start.to_location
+        from_location = self.start.from_location
+
+        if to_warehouse.subtype != 'fba':
+            return
+
+        channel = to_warehouse.channel
+
+        channel.validate_amazon_channel()
+
+        mws_connection_api = channel.get_mws_connection_api()
+
+        from_address = self.start.from_location.parent.address
+
+        if not from_address:
+            self.raise_user_error(
+                "Warehouse %s must have an address" % (
+                    to_location.parent.title()
+                )
+            )
+
+        ship_from_address = from_address.to_fba()
+
+        fba_products = []
+        for inbound_product in self.start.products:
+            listings = Listing.search([
+                ('product', '=', inbound_product.product.id),
+                ('channel', '=', channel.id)
+            ], limit=1)
+            if not listings:
+                self.raise_user_error(
+                    "Product %s is not listed on amazon" % (
+                        inbound_product.product.rec_name
+                    )
+                )
+            listing, = listings
+
+            fba_code = listing.fba_code
+            if not listing.fba_code:
+                fba_code = inbound_product.product.code
+
+            fba_products.append(
+                (fba_code, inbound_product.quantity)
+            )
+
+        request_items = dict(Member=[{
+            'SellerSKU': sku,
+            'Quantity': str(int(qty)),
+        } for sku, qty in fba_products])
+
+        # Create Inbound shipment plan, that would return info
+        # required to create inbound shipment
+        try:
+            plan_response = mws_connection_api.create_inbound_shipment_plan(
+                ShipFromAddress=ship_from_address,
+                InboundShipmentPlanRequestItems=request_items
+            )
+        except Exception, e:  # XXX: Handle InvalidRequestException
+            self.raise_user_error(e.message)
+
+        shipment_values = []
+        for plan in plan_response.CreateInboundShipmentPlanResult.InboundShipmentPlans:  # noqa
+            shipment_header = {
+                'ShipmentName': plan.ShipmentId,
+                'ShipFromAddress': ship_from_address,
+                'DestinationFulfillmentCenterId':
+                    plan.DestinationFulfillmentCenterId,
+                'LabelPrepPreference': plan.LabelPrepType,
+                'ShipmentStatus': 'WORKING',
+            }
+            shipment_items = dict(Member=[{
+                'SellerSKU': item.SellerSKU,
+                'QuantityShipped': item.Quantity,
+            } for item in plan.Items])
+
+            # Create inbound shipment for each item
+            try:
+                mws_connection_api.create_inbound_shipment(
+                    ShipmentId=plan.ShipmentId,
+                    InboundShipmentHeader=shipment_header,
+                    InboundShipmentItems=shipment_items
+                )
+            except Exception, e:  # XXX: Handle InvalidRequestException
+                self.raise_user_error(e.message)
+
+            moves = []
+            for item in plan.Items:
+
+                # Find product for sku returned from amazon
+                product = self.find_product_using_sku(item.SellerSKU, channel)
+                moves.append({
+                    'from_location': from_location,
+                    'to_location': to_location,
+                    'product': product.id,
+                    'quantity': int(item.Quantity),
+                    'uom': product.default_uom.id,
+                })
+
+            shipment_values.append({
+                'from_location': from_location,
+                'to_location': to_location,
+                'mws_inbound_shipment_id': plan.ShipmentId,
+                'moves': [('create', moves)],
+            })
+
+        shipments = Shipment.create(shipment_values)
+        Shipment.wait(shipments)
+        Shipment.assign(shipments)
+        return shipments
+
+    def do_create_(self, action):
+
+        shipments = self.create_inbound_shipment()
+
+        action['pyson_domain'] = PYSONEncoder().encode(
+            [('id', 'in', map(int, shipments))]
+        )
+        action['name'] = "Inbound Shipments"
+
+        return action, {}
