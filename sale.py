@@ -88,7 +88,7 @@ class Sale:
             )
         party_invoice_address = party_shipping_address = \
             Address.find_or_create_for_party_using_amazon_data(
-                party, order_data['ShippingAddress']
+                party, order_data.get('ShippingAddress', None)
             )
 
         sale = cls.get_sale_using_amazon_data(order_data, line_data)

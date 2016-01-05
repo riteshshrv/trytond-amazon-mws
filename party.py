@@ -149,6 +149,20 @@ class Address:
         Country = Pool().get('country.country')
         Subdivision = Pool().get('country.subdivision')
 
+        # Some FBA type orders don't have shipping address so
+        # create a blank address to process shipments
+        if address_data is None:
+            return Address(
+                party=party.id,
+                name=party.name,
+                street=None,
+                streetbis=None,
+                zip=None,
+                city=None,
+                country=None,
+                subdivision=None,
+            )
+
         country, = Country.search([
             ('code', '=', address_data['CountryCode']['value'])
         ], limit=1)
