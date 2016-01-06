@@ -82,7 +82,7 @@ class Sale:
             'email': order_data['BuyerEmail']['value'],
         }
         party = Party.find_or_create_using_amazon_data(party_values)
-        if 'Phone' in order_data['ShippingAddress']:
+        if 'Phone' in order_data.get('ShippingAddress', {}):
             party.add_phone_using_amazon_data(
                 order_data['ShippingAddress']['Phone']['value']
             )
