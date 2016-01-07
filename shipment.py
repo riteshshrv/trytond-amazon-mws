@@ -24,25 +24,22 @@ class StockLocation:
 
     # This field is added so we can have sku of the product (fullfilled by
     # amazon) while sending product info to amazon network
-    channel = fields.Many2One(
-        "sale.channel", "Channel", states={
-            'required': Eval('subtype') == 'fba',
-            'invisible': Eval('subtype') != 'fba',
-        }, domain=[('source', '=', 'amazon_mws')],
-        depends=['subtype']
+    fba_channel = fields.Function(
+        fields.Many2One("sale.channel", "Channel"),
+        'on_change_with_fba_channel',
     )
 
-    @classmethod
-    def __setup__(cls):
-        """
-        Setup the class before adding to pool
-        """
-        super(StockLocation, cls).__setup__()
+    @fields.depends('parent')
+    def on_change_with_fba_channel(self, name=None):
+        Channel = Pool().get('sale.channel')
 
-        fba = ('fba', 'Fullfilled By Amazon')
+        if self.parent:
+            channel = Channel.search([
+                ('source', '=', 'amazon_mws'),
+                ('fba_warehouse', '=', self.parent.id),
+            ])
 
-        if fba not in cls.subtype.selection:
-            cls.subtype.selection.append(fba)
+            return channel and channel[0].id or None
 
 
 class ShipmentOut:
@@ -152,8 +149,9 @@ class ShipmentInternal:
 
     @fields.depends('to_location')
     def on_change_with_channel_source(self, name=None):
-        return (self.to_location.parent and self.to_location.parent.channel) \
-            and self.to_location.parent.channel.source or None
+        return (
+            self.to_location.parent and self.to_location.parent.fba_channel
+        ) and self.to_location.parent.fba_channel.source or None
 
     @classmethod
     @ModelView.button
@@ -163,9 +161,9 @@ class ShipmentInternal:
             if not shipment.mws_inbound_shipment_id:
                 continue
 
-            channel = shipment.to_location.parent.channel
+            channel = shipment.to_location.parent.fba_channel
             channel.validate_amazon_channel()
-            mws_connection_api = channel.get_mws_connection_api()
+            mws_connection_api = channel.get_mws_boto_connection_api()
 
             # Get status for inbound shipment
             result = mws_connection_api.list_inbound_shipments(
@@ -199,8 +197,6 @@ class InboundShipmentCreateStart(ModelView):
     to_location = fields.Many2One(
         'stock.location', "To Location", required=True, domain=[
             ('type', 'in', ['view', 'storage', 'lost_found']),
-            ('parent.subtype', '=', 'fba'),
-            ('parent.channel.source', '=', 'amazon_mws'),
         ]
     )
     products = fields.One2Many(
@@ -245,25 +241,28 @@ class InboundShipmentCreate(Wizard):
         Listing = Pool().get('product.product.channel_listing')
         Shipment = Pool().get('stock.shipment.internal')
 
-        to_warehouse = self.start.to_location.parent
         to_location = self.start.to_location
         from_location = self.start.from_location
 
-        if to_warehouse.subtype != 'fba':
-            return
+        channel = to_location.fba_channel
 
-        channel = to_warehouse.channel
+        if not channel:
+            self.raise_user_error(
+                "Warehouse %s should be mapped to amazon channel" % (
+                    to_location.parent.rec_name.title()
+                )
+            )
 
         channel.validate_amazon_channel()
 
-        mws_connection_api = channel.get_mws_connection_api()
+        mws_connection_api = channel.get_mws_boto_connection_api()
 
         from_address = self.start.from_location.parent.address
 
         if not from_address:
             self.raise_user_error(
                 "Warehouse %s must have an address" % (
-                    to_location.parent.title()
+                    to_location.parent.rec_name.title()
                 )
             )
 

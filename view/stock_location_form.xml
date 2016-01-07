@@ -2,7 +2,7 @@
 
 <data>
     <xpath expr="//field[@name='subtype']" position="after">
-        <label name="channel"/>
-        <field name="channel"/>
+        <label name="fba_channel"/>
+        <field name="fba_channel"/>
     </xpath>
 </data>

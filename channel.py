@@ -113,7 +113,7 @@ class SaleChannel:
             account_id=self.amazon_merchant_id,
         )
 
-    def get_mws_connection_api(self):
+    def get_mws_boto_connection_api(self):
         """
         Create an instance of mws connection
 
