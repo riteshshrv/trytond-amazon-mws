@@ -7,7 +7,7 @@ from lxml.builder import E
 from lxml import etree
 from trytond.pool import PoolMeta, Pool
 from trytond.pyson import Eval, PYSONEncoder
-from trytond.model import ModelView, fields
+from trytond.model import ModelView, fields, Workflow
 from trytond.wizard import Wizard, StateAction, StateView, Button
 
 
@@ -152,8 +152,31 @@ class ShipmentInternal:
 
     @fields.depends('to_location')
     def on_change_with_channel_source(self, name=None):
-        return (self.to_location.parent.channel and self.to_location.parent) \
+        return (self.to_location.parent and self.to_location.parent.channel) \
             and self.to_location.parent.channel.source or None
+
+    @classmethod
+    @ModelView.button
+    @Workflow.transition('done')
+    def done(cls, shipments):
+        for shipment in shipments:
+            if not shipment.mws_inbound_shipment_id:
+                continue
+
+            channel = shipment.to_location.parent.channel
+            channel.validate_amazon_channel()
+            mws_connection_api = channel.get_mws_connection_api()
+
+            # Get status for inbound shipment
+            result = mws_connection_api.list_inbound_shipments(
+                ShipmentIdList=[shipment.mws_inbound_shipment_id]
+            )
+            if result.ListInboundShipmentsResult.ShipmentData[0].ShipmentStatus != 'CLOSED':  # noqa
+                cls.raise_user_error(
+                    "Items in this shipments has not been received by "
+                    "the Amazon fulfillment center yet."
+                )
+        return super(ShipmentInternal, cls).done(shipments)
 
 
 class InboundShipmentProducts(ModelView):
