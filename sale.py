@@ -100,6 +100,10 @@ class Sale:
 
         if order_data['FulfillmentChannel']['value'] == 'AFN':
             sale.warehouse = amazon_channel.fba_warehouse.id
+            for line in sale.lines:
+                # Set warehouse explicitly else it default is set
+                # to channel.warehouse
+                line.warehouse = sale.warehouse
             sale.invoice_method = 'manual'
             sale.shipment_method = 'order'
 
