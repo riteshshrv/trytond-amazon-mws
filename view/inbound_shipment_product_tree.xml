@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+
+<tree string="Products" editable="bottom">
+    <field name="product"/>
+    <field name="quantity"/>
+</tree>

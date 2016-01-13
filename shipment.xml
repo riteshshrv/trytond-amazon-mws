@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<tryton>
+    <data>
+        <record model="ir.ui.view" id="shipment_internal_view_form">
+            <field name="model">stock.shipment.internal</field>
+            <field name="inherit" ref="stock.shipment_internal_view_form"/>
+            <field name="name">shipment_internal_form</field>
+        </record>
+
+        <record model="ir.ui.view" id="inbound_shipment_create_start_form">
+            <field name="model">inbound_shipment.create.start</field>
+            <field name="type">form</field>
+            <field name="name">inbound_shipment_create_start_form</field>
+        </record>
+        <record model="ir.ui.view" id="inbound_shipment_product_tree">
+            <field name="model">inbound_shipment.products</field>
+            <field name="type">tree</field>
+            <field name="name">inbound_shipment_product_tree</field>
+        </record>
+        <record model="ir.action.wizard" id="act_inbound_shipment_wizard">
+            <field name="name">Create Inbound Shipment</field>
+            <field name="wiz_name">inbound_shipment.create</field>
+        </record>
+        <menuitem parent="stock.menu_stock" sequence="100"
+            action="act_inbound_shipment_wizard" id="menu_inbound_shipment_wizard"/>
+
+    </data>
+</tryton>
