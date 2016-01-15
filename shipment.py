@@ -161,7 +161,7 @@ class ShipmentInternal:
             if not shipment.mws_inbound_shipment_id:
                 continue
 
-            channel = shipment.to_location.parent.fba_channel
+            channel = shipment.to_location.fba_channel
             channel.validate_amazon_channel()
             mws_connection_api = channel.get_mws_boto_connection_api()
 
