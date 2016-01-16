@@ -423,6 +423,11 @@ class SaleChannel:
                 exisiting_listing.fba_code = sku
                 exisiting_listing.save()
 
+            if product_data['FulfillmentChannel'] != 'AFN' and \
+                    exisiting_listing.product_identifier != sku:
+                exisiting_listing.product_identifier = sku
+                exisiting_listing.product_identifier.save()
+
             return exisiting_listing.product
 
         products = Product.search([('code', '=', sku)])
